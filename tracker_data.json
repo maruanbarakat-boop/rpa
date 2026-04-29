@@ -17,7 +17,7 @@
       "end": "13:00",
       "hours": 3.5,
       "cat": "Kickoff / Onboarding",
-      "desc": "Kickoff meeting — introductions with VP Technology (Ernest Ostro) and Claudio. Environment overview, scope alignment, initial access coordination. Teams video.",
+      "desc": "Kickoff meeting â introductions with VP Technology (Ernest Ostro) and Claudio. Environment overview, scope alignment, initial access coordination. Teams video.",
       "bill": "yes"
     },
     {
@@ -27,7 +27,7 @@
       "end": "17:30",
       "hours": 1,
       "cat": "Kickoff / Onboarding",
-      "desc": "Introductory call — Ernest Ostro, Claudio. Initial engagement kickoff, consultant alignment, project scope discussion. Teams video.",
+      "desc": "Introductory call â Ernest Ostro, Claudio. Initial engagement kickoff, consultant alignment, project scope discussion. Teams video.",
       "bill": "yes"
     },
     {
@@ -37,8 +37,27 @@
       "end": "13:15",
       "hours": 0.25,
       "cat": "Project Meetings",
-      "desc": "IT Project Daily Stand-Up — Ernest Ostro, Katy Thompson, Maruan Barakat. Teams video.",
+      "desc": "IT Project Daily Stand-Up â Ernest Ostro, Katy Thompson, Maruan Barakat. Teams video.",
       "bill": "yes"
+    }
+  ],
+  "invoices": [
+    {
+      "id": "1777495151645",
+      "type": "custom",
+      "number": "INV-RPA-001",
+      "date": "2026-04-29",
+      "due": "2026-05-29",
+      "description": "20% upfront retainer per Consulting Agreement dated April 28, 2026.\nScope: M365 Administration (Exchange Online, Azure AD / Entra ID, Intune, SharePoint, Teams, Defender, PowerShell).\nThis retainer will be applied as a credit against subsequent monthly invoices.",
+      "gross": 6000,
+      "credit": 0,
+      "net": 6000,
+      "status": "draft",
+      "notes": "Payment via ACH. Please send remittance confirmation to maruan.barakat@gmail.com.",
+      "sentAt": null,
+      "paidAt": null,
+      "paidAmount": 0,
+      "isRetainer": true
     }
   ]
 }
