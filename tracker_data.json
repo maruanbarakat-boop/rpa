@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "id": "1777492962712",
+      "date": "2026-04-28",
+      "start": "16:30",
+      "end": "17:30",
+      "hours": 1,
+      "cat": "Kickoff / Onboarding",
+      "desc": "Introductory call — Ernest Ostro, Claudio. Initial engagement kickoff, consultant alignment, project scope discussion. Teams video.",
+      "bill": "yes"
+    },
+    {
       "id": "1777492922650",
       "date": "2026-04-28",
       "start": "13:00",
