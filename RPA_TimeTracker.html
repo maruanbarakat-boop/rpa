@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPA Time Tracker — Maruan Barakat Consulting</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117; --surf: #181c27; --surf2: #1e2333; --bdr: #2a3050;
+    --gold: #c9923a; --goldl: #e8b56a; --golddim: rgba(201,146,58,0.12);
+    --txt: #e8eaf0; --muted: #7a82a0; --dim: #4a5270;
+    --red: #e05c5c; --green: #5cb87a;
+  }
+  body { font-family: 'Sora', system-ui, sans-serif; background: var(--bg); color: var(--txt); min-height: 100vh; }
+  * { font-family: 'Sora', system-ui, sans-serif; }
+  input, select, textarea, button { font-family: 'Sora', system-ui, sans-serif; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--bdr); border-radius: 3px; }
+
+  /* Modal overlay */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal {
+    background: var(--surf); border: 1px solid var(--bdr);
+    border-radius: 14px; padding: 28px; max-width: 500px; width: 100%;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+
+  /* Tooltip */
+  .tooltip-wrap { position: relative; display: inline-block; }
+  .tooltip-wrap:hover .tooltip { opacity: 1; pointer-events: auto; }
+  .tooltip {
+    position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: #2a3050; color: var(--txt); font-size: 10px; padding: 5px 9px;
+    border-radius: 5px; white-space: nowrap; opacity: 0; transition: opacity 0.15s;
+    pointer-events: none; z-index: 100;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const SKEY = 'rpa_tracker_standalone_v1';
+const RATE = 150;
+const MAX_HOURS = 200;
+const RETAINER = 6000;
+
+const CATS = [
+  'Kickoff / Onboarding','Exchange Online','Azure AD / Entra ID',
+  'Intune / Autopilot','SharePoint / Teams / OneDrive','Microsoft Defender',
+  'PowerShell / Automation','Security Administration','Vendor Management',
+  'Project Meetings','Assessment / Audit','Documentation','Other',
+];
+
+const CAT_COLOR = {
+  'Kickoff / Onboarding':          ['rgba(74,111,165,0.2)','#7aa3d4'],
+  'Exchange Online':                ['rgba(70,180,150,0.2)','#5cc9a7'],
+  'Azure AD / Entra ID':            ['rgba(140,100,200,0.2)','#b08ae0'],
+  'Intune / Autopilot':             ['rgba(80,150,200,0.2)','#70b8e8'],
+  'SharePoint / Teams / OneDrive':  ['rgba(60,140,220,0.2)','#60b0ee'],
+  'Microsoft Defender':             ['rgba(200,60,60,0.2)','#e07a7a'],
+  'PowerShell / Automation':        ['rgba(180,140,40,0.2)','#d4b85a'],
+  'Security Administration':        ['rgba(220,100,40,0.2)','#e89060'],
+  'Vendor Management':              ['rgba(160,80,160,0.2)','#d08ad0'],
+  'Project Meetings':               ['rgba(201,146,58,0.2)','#c9923a'],
+  'Assessment / Audit':             ['rgba(100,180,80,0.2)','#80cc70'],
+  'Documentation':                  ['rgba(130,130,180,0.2)','#a0a8d8'],
+  'Other':                          ['rgba(80,80,100,0.2)','#9090b0'],
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const todayStr  = () => new Date().toISOString().slice(0,10);
+const fh        = h  => h.toFixed(2) + 'h';
+const fm        = (h,b) => b === 'yes' ? '$' + (h*RATE).toLocaleString('en-US',{minimumFractionDigits:2}) : '—';
+const fd        = d  => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+const mk        = d  => d.slice(0,7);
+const ml        = k  => { const [y,m]=k.split('-'); return new Date(+y,+m-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); };
+
+function calcH(s, e, manual) {
+  const v = parseFloat(manual);
+  if (v > 0) return Math.round(v * 4) / 4;
+  if (s && e) {
+    const [sh,sm] = s.split(':').map(Number);
+    const [eh,em] = e.split(':').map(Number);
+    const diff = (eh*60+em) - (sh*60+sm);
+    if (diff > 0) return Math.round(diff/15) * 0.25;
+  }
+  return null;
+}
+
+// ── Storage ──────────────────────────────────────────────────────────────────
+function loadData()    { try { const d = localStorage.getItem(SKEY); return d ? JSON.parse(d) : []; } catch(e) { return []; } }
+function saveData(arr) { try { localStorage.setItem(SKEY, JSON.stringify(arr)); } catch(e) {} }
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+function Badge({ cat }) {
+  const [bg, col] = CAT_COLOR[cat] || CAT_COLOR['Other'];
+  return <span style={{display:'inline-block',padding:'3px 8px',borderRadius:4,fontSize:9,fontWeight:700,
+    letterSpacing:0.5,textTransform:'uppercase',background:bg,color:col,whiteSpace:'nowrap'}}>{cat}</span>;
+}
+
+const inp = {
+  width:'100%', background:'#1e2333', border:'1px solid #2a3050',
+  borderRadius:7, color:'#e8eaf0', fontSize:13, padding:'8px 10px', outline:'none',
+  transition:'border-color 0.2s',
+};
+const lbl = {fontSize:10,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:5,display:'block'};
+
+function Input(props) {
+  const [focused, setFocused] = useState(false);
+  return <input {...props} style={{...inp,...(focused?{borderColor:'#c9923a'}:{}),...(props.style||{})}}
+    onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}/>;
+}
+function Select({ children, ...props }) {
+  const [focused, setFocused] = useState(false);
+  return <select {...props} style={{...inp,...(focused?{borderColor:'#c9923a'}:{})}}
+    onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}>{children}</select>;
+}
+function Textarea(props) {
+  const [focused, setFocused] = useState(false);
+  return <textarea {...props} style={{...inp,minHeight:60,resize:'vertical',...(focused?{borderColor:'#c9923a'}:{})}}
+    onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}/>;
+}
+
+function Btn({ children, variant='primary', onClick, style={}, disabled=false }) {
+  const [hover, setHover] = useState(false);
+  const base = { padding:'10px 22px', border:'none', borderRadius:8, fontSize:13,
+    fontWeight:700, cursor: disabled ? 'not-allowed' : 'pointer', transition:'all 0.15s', display:'inline-block' };
+  const styles = {
+    primary: { background: hover&&!disabled ? '#e8b56a' : '#c9923a', color:'#0f1117', opacity: disabled ? 0.5 : 1 },
+    ghost:   { background: hover ? 'rgba(201,146,58,0.2)' : 'rgba(201,146,58,0.12)', color:'#c9923a',
+               border:'1px solid rgba(201,146,58,0.3)', padding:'7px 14px', fontSize:12 },
+    danger:  { background:'transparent', color:'#e05c5c', border:'1px solid #2a3050',
+               padding:'5px 10px', fontSize:11, borderColor: hover ? '#e05c5c' : '#2a3050' },
+  };
+  return <button onClick={disabled ? undefined : onClick} style={{...base,...styles[variant],...style}}
+    onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}>{children}</button>;
+}
+
+function StatCard({ label, value, sub, accent, children }) {
+  return (
+    <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:10,padding:'12px 14px'}}>
+      <div style={{fontSize:9,color:'#7a82a0',textTransform:'uppercase',letterSpacing:'1px',marginBottom:5}}>{label}</div>
+      <div style={{fontSize:20,fontWeight:700,fontFamily:"'DM Mono',monospace",color:accent||'#e8eaf0'}}>{value}</div>
+      {sub && <div style={{fontSize:10,color:'#7a82a0',marginTop:2}}>{sub}</div>}
+      {children}
+    </div>
+  );
+}
+
+const TH = () => (
+  <thead><tr>
+    {['Date','Category','Description','Hours','Amount',''].map(h => (
+      <th key={h} style={{fontSize:9,color:'#4a5270',textTransform:'uppercase',padding:'9px 16px',
+        textAlign:'left',borderBottom:'1px solid #2a3050',fontFamily:"'Sora',sans-serif"}}>{h}</th>
+    ))}
+  </tr></thead>
+);
+
+function EntryRow({ e, onDelete }) {
+  return (
+    <tr style={{borderBottom:'1px solid rgba(42,48,80,0.4)'}}>
+      <td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:11,color:'#7a82a0',whiteSpace:'nowrap'}}>
+        {fd(e.date)}
+        {e.start && <><br/><span style={{fontSize:10,color:'#4a5270'}}>{e.start}{e.end && '–'+e.end}</span></>}
+      </td>
+      <td style={{padding:'11px 16px'}}><Badge cat={e.cat}/></td>
+      <td style={{padding:'11px 16px',fontSize:12,color:'#7a82a0',maxWidth:260}}>{e.desc}</td>
+      <td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontWeight:500,color:'#c9923a'}}>{fh(e.hours)}</td>
+      <td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:11,color:'#7a82a0'}}>{fm(e.hours,e.bill)}</td>
+      <td style={{padding:'11px 16px'}}>
+        <Btn variant="danger" onClick={()=>onDelete(e.id)}>✕</Btn>
+      </td>
+    </tr>
+  );
+}
+
+// ── Add Entry Modal ───────────────────────────────────────────────────────────
+function AddModal({ onClose, onSave }) {
+  const [fDate,  setFDate]  = useState(todayStr());
+  const [fStart, setFStart] = useState('');
+  const [fEnd,   setFEnd]   = useState('');
+  const [fHours, setFHours] = useState('');
+  const [fCat,   setFCat]   = useState('');
+  const [fDesc,  setFDesc]  = useState('');
+  const [fBill,  setFBill]  = useState('yes');
+  const [error,  setError]  = useState('');
+
+  const preview = calcH(fStart, fEnd, fHours);
+
+  function submit() {
+    setError('');
+    const h = calcH(fStart, fEnd, fHours);
+    if (!h)          { setError('Enter hours via start/end times or the manual field.'); return; }
+    if (!fCat)       { setError('Select a category.'); return; }
+    if (!fDesc.trim()){ setError('Enter a task description.'); return; }
+    onSave({ id: Date.now().toString(), date:fDate||todayStr(), start:fStart, end:fEnd, hours:h, cat:fCat, desc:fDesc.trim(), bill:fBill });
+    onClose();
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => { if(e.target===e.currentTarget) onClose(); }}>
+      <div className="modal">
+        <div className="modal-title">+ New Time Entry</div>
+        <div className="modal-sub">RPA · Rockefeller Philanthropy Advisors · $150/hr</div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1.4fr 1fr 1fr 1fr',gap:10,marginBottom:12}}>
+          <div><label style={lbl}>Date</label><Input type="date" value={fDate} onChange={e=>setFDate(e.target.value)}/></div>
+          <div><label style={lbl}>Start</label><Input type="time" value={fStart} onChange={e=>setFStart(e.target.value)}/></div>
+          <div><label style={lbl}>End</label><Input type="time" value={fEnd} onChange={e=>setFEnd(e.target.value)}/></div>
+          <div><label style={lbl}>Hours</label><Input type="number" placeholder="1.5" step="0.25" min="0.25" value={fHours} onChange={e=>setFHours(e.target.value)}/></div>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:12}}>
+          <div>
+            <label style={lbl}>Category</label>
+            <Select value={fCat} onChange={e=>setFCat(e.target.value)}>
+              <option value="">Select...</option>
+              {CATS.map(c=><option key={c} value={c}>{c}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label style={lbl}>Billable?</label>
+            <Select value={fBill} onChange={e=>setFBill(e.target.value)}>
+              <option value="yes">Yes — $150/hr</option>
+              <option value="no">No</option>
+            </Select>
+          </div>
+        </div>
+
+        <div style={{marginBottom:12}}>
+          <label style={lbl}>Task Description</label>
+          <Textarea placeholder="Brief description (appears on invoice)..." value={fDesc} onChange={e=>setFDesc(e.target.value)}/>
+        </div>
+
+        {error && (
+          <div style={{fontSize:12,color:'#e05c5c',marginBottom:10,padding:'7px 10px',
+            background:'rgba(224,92,92,0.1)',borderRadius:6,border:'1px solid rgba(224,92,92,0.2)'}}>{error}</div>
+        )}
+
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:12,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>
+            {preview ? `${fh(preview)} · $${(preview*RATE).toFixed(2)}` : ''}
+          </span>
+          <div style={{display:'flex',gap:10}}>
+            <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+            <Btn variant="primary" onClick={submit}>Save Entry →</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [entries,  setEntries]  = useState(() => loadData());
+  const [tab,      setTab]      = useState('log');
+  const [showAdd,  setShowAdd]  = useState(false);
+  const [filMonth, setFilMonth] = useState('all');
+  const [filCat,   setFilCat]   = useState('all');
+
+  useEffect(() => { saveData(entries); }, [entries]);
+
+  function addEntry(e)    { setEntries(prev => [e, ...prev]); }
+  function delEntry(id)   { if(window.confirm('Remove this entry?')) setEntries(prev => prev.filter(e=>e.id!==id)); }
+
+  // Stats
+  const t = todayStr(), tm = t.slice(0,7);
+  const todH = entries.filter(e=>e.date===t).reduce((s,e)=>s+e.hours,0);
+  const monH = entries.filter(e=>e.date.startsWith(tm)).reduce((s,e)=>s+e.hours,0);
+  const totH = entries.reduce((s,e)=>s+e.hours,0);
+  const monB = entries.filter(e=>e.date.startsWith(tm)&&e.bill==='yes').reduce((s,e)=>s+e.hours,0);
+  const totB = entries.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);
+
+  const months = [...new Set(entries.map(e=>mk(e.date)))].sort().reverse();
+  const cats   = [...new Set(entries.map(e=>e.cat))].sort();
+
+  const filtered = entries.filter(e => {
+    if (filMonth!=='all' && !e.date.startsWith(filMonth)) return false;
+    if (filCat!=='all'   && e.cat!==filCat)               return false;
+    return true;
+  });
+  const filtH  = filtered.reduce((s,e)=>s+e.hours,0);
+  const filtB  = filtered.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);
+
+  function exportCSV() {
+    const hdr  = 'Date,Start,End,Hours,Category,Description,Billable,Amount\n';
+    const rows = filtered.map(e =>
+      `${e.date},${e.start||''},${e.end||''},${e.hours},"${e.cat}","${e.desc.replace(/"/g,'""')}",${e.bill},${e.bill==='yes'?(e.hours*RATE).toFixed(2):0}`
+    ).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([hdr+rows],{type:'text/csv'}));
+    a.download = `RPA_TimeLog_${filMonth==='all'?'All':filMonth}.csv`;
+    a.click();
+  }
+
+  // Billing
+  function BillingSummary() {
+    if (!months.length) return (
+      <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,padding:48,textAlign:'center',color:'#4a5270'}}>
+        No entries yet to generate a billing summary.
+      </div>
+    );
+    let retainer = RETAINER;
+    return months.map(m => {
+      const me  = entries.filter(e=>e.date.startsWith(m));
+      const bh  = me.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);
+      const gross  = bh * RATE;
+      const credit = Math.min(retainer, gross);
+      retainer -= credit;
+      const net = gross - credit;
+      const catMap = {};
+      me.forEach(e => {
+        if (!catMap[e.cat]) catMap[e.cat] = {h:0, b:0};
+        catMap[e.cat].h += e.hours;
+        if (e.bill==='yes') catMap[e.cat].b += e.hours;
+      });
+      return (
+        <div key={m} style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,padding:22,marginBottom:16}}>
+          <div style={{fontSize:10,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1,marginBottom:3}}>Invoice Period</div>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:16}}>{ml(m)}</div>
+          <table style={{width:'100%',borderCollapse:'collapse',marginBottom:16}}>
+            <thead><tr>{['Category','Hours','Rate','Amount'].map(h=>(
+              <th key={h} style={{fontSize:9,color:'#4a5270',textTransform:'uppercase',padding:'7px 10px',textAlign:'left',borderBottom:'1px solid #2a3050'}}>{h}</th>
+            ))}</tr></thead>
+            <tbody>{Object.entries(catMap).map(([c,d])=>(
+              <tr key={c} style={{borderBottom:'1px solid rgba(42,48,80,0.35)'}}>
+                <td style={{padding:'9px 10px'}}><Badge cat={c}/></td>
+                <td style={{padding:'9px 10px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fh(d.h)}</td>
+                <td style={{padding:'9px 10px',fontSize:12,color:'#7a82a0'}}>$150/hr</td>
+                <td style={{padding:'9px 10px',fontFamily:"'DM Mono',monospace",fontSize:12}}>
+                  {d.b>0 ? '$'+(d.b*RATE).toLocaleString('en-US',{minimumFractionDigits:2}) : '—'}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+          <div style={{borderTop:'1px solid #2a3050',paddingTop:14,textAlign:'right'}}>
+            <div style={{fontSize:11,color:'#7a82a0'}}>Gross: <strong style={{color:'#e8eaf0',fontFamily:"'DM Mono',monospace"}}>${gross.toLocaleString('en-US',{minimumFractionDigits:2})}</strong></div>
+            {credit>0 && <div style={{fontSize:11,color:'#5cb87a'}}>Retainer credit applied: –${credit.toLocaleString('en-US',{minimumFractionDigits:2})}</div>}
+            <div style={{fontSize:11,color:'#7a82a0',marginTop:6}}>Net Due</div>
+            <div style={{fontSize:26,fontWeight:700,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>${net.toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+          </div>
+        </div>
+      );
+    });
+  }
+
+  const tabStyle = id => ({
+    padding:'10px 18px', fontSize:12, fontWeight:500, cursor:'pointer',
+    color: tab===id ? '#c9923a' : '#7a82a0',
+    borderBottom: tab===id ? '2px solid #c9923a' : '2px solid transparent',
+    userSelect:'none', transition:'all 0.15s',
+  });
+
+  const selStyle = {
+    background:'#1e2333', border:'1px solid #2a3050', borderRadius:6,
+    color:'#7a82a0', fontSize:11, padding:'5px 8px', cursor:'pointer',
+  };
+
+  return (
+    <div style={{background:'#0f1117',minHeight:'100vh',color:'#e8eaf0'}}>
+
+      {/* ── Header ── */}
+      <div style={{background:'#181c27',borderBottom:'1px solid #2a3050',padding:'14px 24px',
+        display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:50}}>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{width:36,height:36,background:'#c9923a',borderRadius:8,display:'flex',alignItems:'center',
+            justifyContent:'center',fontSize:14,fontWeight:700,color:'#0f1117',flexShrink:0,letterSpacing:'-0.5px'}}>MB</div>
+          <div>
+            <div style={{fontSize:14,fontWeight:600,letterSpacing:'-0.2px'}}>Maruan Barakat Consulting</div>
+            <div style={{fontSize:11,color:'#7a82a0',marginTop:1}}>Time Tracker — Rockefeller Philanthropy Advisors</div>
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:16}}>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:10,color:'#7a82a0'}}>$150/hr · 200h contract · Net 30 ACH</div>
+            <div style={{fontSize:17,fontWeight:700,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>
+              ${(totB*RATE).toLocaleString('en-US',{minimumFractionDigits:2})} logged
+            </div>
+          </div>
+          <Btn variant="primary" onClick={()=>setShowAdd(true)} style={{whiteSpace:'nowrap'}}>+ New Entry</Btn>
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div style={{display:'flex',borderBottom:'1px solid #2a3050',background:'#181c27',padding:'0 24px'}}>
+        {[['log','📋 Log'],['entries','📊 All Entries'],['billing','💳 Billing']].map(([id,label])=>(
+          <div key={id} style={tabStyle(id)} onClick={()=>setTab(id)}>{label}</div>
+        ))}
+      </div>
+
+      <div style={{padding:'24px',maxWidth:920,margin:'0 auto'}}>
+
+        {/* ── LOG TAB ── */}
+        {tab==='log' && <>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
+            <StatCard label="Today" value={fh(todH)} sub={fd(t)}/>
+            <StatCard label="This Month" value={fh(monH)} sub={ml(tm)}/>
+            <StatCard label="Total Logged" value={fh(totH)} accent="#c9923a"
+              sub={`${(MAX_HOURS-totH).toFixed(2)}h remaining of ${MAX_HOURS}h`}>
+              <div style={{height:3,background:'#2a3050',borderRadius:2,overflow:'hidden',marginTop:6}}>
+                <div style={{height:'100%',background:'#c9923a',borderRadius:2,transition:'width 0.3s',
+                  width:Math.min(totH/MAX_HOURS*100,100)+'%'}}/>
+              </div>
+            </StatCard>
+            <StatCard label="Billable (Month)" accent="#5cb87a"
+              value={'$'+(monB*RATE).toLocaleString('en-US',{minimumFractionDigits:2})} sub="Net 30 · ACH"/>
+          </div>
+
+          {/* Quick add prompt */}
+          <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,padding:20,marginBottom:24,
+            display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>Log your time</div>
+              <div style={{fontSize:12,color:'#7a82a0'}}>Track each task separately to comply with the SOW per-task reporting requirement.</div>
+            </div>
+            <Btn variant="primary" onClick={()=>setShowAdd(true)}>+ Add Entry →</Btn>
+          </div>
+
+          {/* Recent entries */}
+          <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden'}}>
+            <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>
+              Recent Entries
+            </div>
+            {entries.length===0
+              ? <div style={{textAlign:'center',padding:52,color:'#4a5270'}}>
+                  <div style={{fontSize:28,marginBottom:10}}>⏱</div>
+                  <div style={{fontSize:13}}>No entries yet. Click "+ Add Entry" to log your first task.</div>
+                </div>
+              : <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse'}}>
+                    <TH/>
+                    <tbody>{entries.slice(0,7).map(e=><EntryRow key={e.id} e={e} onDelete={delEntry}/>)}</tbody>
+                  </table>
+                  {entries.length>7 && (
+                    <div style={{textAlign:'center',padding:'12px',borderTop:'1px solid #2a3050'}}>
+                      <span style={{fontSize:12,color:'#7a82a0',cursor:'pointer'}} onClick={()=>setTab('entries')}>
+                        View all {entries.length} entries →
+                      </span>
+                    </div>
+                  )}
+                </div>
+            }
+          </div>
+        </>}
+
+        {/* ── ENTRIES TAB ── */}
+        {tab==='entries' && (
+          <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',borderBottom:'1px solid #2a3050'}}>
+              <div style={{fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>All Entries</div>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <select style={selStyle} value={filMonth} onChange={e=>setFilMonth(e.target.value)}>
+                  <option value="all">All Time</option>
+                  {months.map(m=><option key={m} value={m}>{ml(m)}</option>)}
+                </select>
+                <select style={selStyle} value={filCat} onChange={e=>setFilCat(e.target.value)}>
+                  <option value="all">All Categories</option>
+                  {cats.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+                <Btn variant="ghost" onClick={exportCSV}>↓ Export CSV</Btn>
+              </div>
+            </div>
+            {filtered.length===0
+              ? <div style={{textAlign:'center',padding:48,color:'#4a5270'}}>No entries match this filter.</div>
+              : <>
+                  <div style={{overflowX:'auto'}}>
+                    <table style={{width:'100%',borderCollapse:'collapse'}}>
+                      <TH/>
+                      <tbody>{filtered.map(e=><EntryRow key={e.id} e={e} onDelete={delEntry}/>)}</tbody>
+                    </table>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'flex-end',gap:20,padding:'12px 18px',borderTop:'1px solid #2a3050'}}>
+                    <span style={{fontSize:11,color:'#7a82a0'}}>Entries: <strong style={{color:'#e8eaf0',fontFamily:"'DM Mono',monospace"}}>{filtered.length}</strong></span>
+                    <span style={{fontSize:11,color:'#7a82a0'}}>Hours: <strong style={{color:'#e8eaf0',fontFamily:"'DM Mono',monospace"}}>{fh(filtH)}</strong></span>
+                    <span style={{fontSize:11,color:'#7a82a0'}}>Total: <strong style={{color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>${(filtB*RATE).toLocaleString('en-US',{minimumFractionDigits:2})}</strong></span>
+                  </div>
+                </>
+            }
+          </div>
+        )}
+
+        {/* ── BILLING TAB ── */}
+        {tab==='billing' && <>
+          <div style={{background:'rgba(201,146,58,0.1)',border:'1px solid rgba(201,146,58,0.25)',borderRadius:8,
+            padding:'10px 16px',fontSize:12,color:'#e8b56a',marginBottom:20}}>
+            ⚡ <strong>INV-RPA-001</strong> · $6,000.00 retainer applied as credit against subsequent invoices · Contract period: Apr 28 2026 – Apr 28 2027
+          </div>
+          <BillingSummary/>
+        </>}
+
+      </div>
+
+      {/* ── Add Modal ── */}
+      {showAdd && <AddModal onClose={()=>setShowAdd(false)} onSave={addEntry}/>}
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
