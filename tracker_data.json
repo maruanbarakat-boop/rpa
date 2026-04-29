@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "id": "1777493073695",
+      "date": "2026-04-29",
+      "start": "13:30",
+      "end": "14:00",
+      "hours": 0.5,
+      "cat": "Vendor Management",
+      "desc": "CrowdStrike contract negotiation meeting with RPA team and vendor.",
+      "bill": "yes"
+    },
+    {
       "id": "1777493041888",
       "date": "2026-04-29",
       "start": "09:30",
