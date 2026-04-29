@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "id": "1777493041888",
+      "date": "2026-04-29",
+      "start": "09:30",
+      "end": "13:00",
+      "hours": 3.5,
+      "cat": "Kickoff / Onboarding",
+      "desc": "Kickoff meeting — introductions with VP Technology (Ernest Ostro) and Claudio. Environment overview, scope alignment, initial access coordination. Teams video.",
+      "bill": "yes"
+    },
+    {
       "id": "1777492962712",
       "date": "2026-04-28",
       "start": "16:30",
