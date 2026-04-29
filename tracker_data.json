@@ -52,9 +52,9 @@
       "gross": 6000,
       "credit": 0,
       "net": 6000,
-      "status": "draft",
+      "status": "sent",
       "notes": "Payment via ACH. Please send remittance confirmation to maruan.barakat@gmail.com.",
-      "sentAt": null,
+      "sentAt": "2026-04-29",
       "paidAt": null,
       "paidAmount": 0,
       "isRetainer": true
