@@ -15,7 +15,7 @@ body{font-family:'Sora',system-ui,sans-serif;background:var(--bg);color:var(--tx
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;overflow-y:auto}
 .modal{background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:28px;max-width:560px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.6)}
-.modal-lg{max-width:780px}
+.modal-lg{max-width:800px}
 @keyframes spin{to{transform:rotate(360deg)}}.spin{animation:spin 0.8s linear infinite;display:inline-block}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}.pulse{animation:pulse 1.5s ease infinite}
 @media print{body{background:#fff;color:#000}.no-print{display:none!important}}
@@ -25,9 +25,13 @@ body{font-family:'Sora',system-ui,sans-serif;background:var(--bg);color:var(--tx
 <div id="root"></div>
 <script type="text/babel">
 const{useState,useEffect,useRef,useMemo}=React;
-const GH_OWNER='maruanbarakat-boop',GH_REPO='rpa',GH_BRANCH='main',GH_FILE='tracker_data.json',TOKEN_KEY='rpa_gh_token',RATE=150,MAX_H=200,RETAINER=6000;
+const GH_OWNER='maruanbarakat-boop',GH_REPO='rpa',GH_BRANCH='main',GH_FILE='tracker_data.json',TOKEN_KEY='rpa_gh_token';
+const RATE=150,MAX_H=200,RETAINER=6000;
+
 const CATS=['Kickoff / Onboarding','Exchange Online','Azure AD / Entra ID','Intune / Autopilot','SharePoint / Teams / OneDrive','Microsoft Defender','PowerShell / Automation','Security Administration','Vendor Management','Project Meetings','Assessment / Audit','Documentation','Other'];
 const CAT_COLOR={'Kickoff / Onboarding':['rgba(74,111,165,0.2)','#7aa3d4'],'Exchange Online':['rgba(70,180,150,0.2)','#5cc9a7'],'Azure AD / Entra ID':['rgba(140,100,200,0.2)','#b08ae0'],'Intune / Autopilot':['rgba(80,150,200,0.2)','#70b8e8'],'SharePoint / Teams / OneDrive':['rgba(60,140,220,0.2)','#60b0ee'],'Microsoft Defender':['rgba(200,60,60,0.2)','#e07a7a'],'PowerShell / Automation':['rgba(180,140,40,0.2)','#d4b85a'],'Security Administration':['rgba(220,100,40,0.2)','#e89060'],'Vendor Management':['rgba(160,80,160,0.2)','#d08ad0'],'Project Meetings':['rgba(201,146,58,0.2)','#c9923a'],'Assessment / Audit':['rgba(100,180,80,0.2)','#80cc70'],'Documentation':['rgba(130,130,180,0.2)','#a0a8d8'],'Other':['rgba(80,80,100,0.2)','#9090b0']};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const fh=h=>h.toFixed(2)+'h';
 const fc=(h,b)=>b==='yes'?'$'+(h*RATE).toLocaleString('en-US',{minimumFractionDigits:2}):'—';
@@ -38,22 +42,62 @@ const ml=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateStri
 const fm$=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2});
 function calcH(s,e,m){const v=parseFloat(m);if(v>0)return Math.round(v*4)/4;if(s&&e){const[sh,sm]=s.split(':').map(Number);const[eh,em]=e.split(':').map(Number);const d=(eh*60+em)-(sh*60+sm);if(d>0)return Math.round(d/15)*0.25;}return null;}
 function weekOf(d){const dt=new Date(d+'T12:00:00');const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);const mon=new Date(dt);mon.setDate(diff);return mon.toISOString().slice(0,10);}
-async function ghRead(token){const res=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}?ref=${GH_BRANCH}`,{headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});if(res.status===404)return{entries:[],invoices:[],sha:null};if(!res.ok)throw new Error(`GitHub read failed: ${res.status}`);const data=await res.json();const content=JSON.parse(atob(data.content.replace(/\n/g,'')));return{entries:content.entries||[],invoices:content.invoices||[],sha:data.sha};}
-async function ghWrite(token,entries,invoices,sha){const url=`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;const content=btoa(unescape(encodeURIComponent(JSON.stringify({entries,invoices},null,2))));const body={message:`Update time log — ${new Date().toISOString().slice(0,10)}`,content,branch:GH_BRANCH};if(sha)body.sha=sha;const res=await fetch(url,{method:'PUT',headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});if(!res.ok){const err=await res.json();throw new Error(err.message||`Write failed: ${res.status}`);}return(await res.json()).content.sha;}
+function addDays(d,n){const dt=new Date(d+'T12:00:00');dt.setDate(dt.getDate()+n);return dt.toISOString().slice(0,10);}
+
+// ── GitHub API ────────────────────────────────────────────────────────────────
+async function ghRead(token){
+  const res=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}?ref=${GH_BRANCH}`,{headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});
+  if(res.status===404)return{entries:[],invoices:[],sha:null};
+  if(!res.ok)throw new Error(`GitHub read failed: ${res.status}`);
+  const data=await res.json();
+  const content=JSON.parse(atob(data.content.replace(/\n/g,'')));
+  return{entries:content.entries||[],invoices:content.invoices||[],sha:data.sha};
+}
+async function ghWrite(token,entries,invoices,sha){
+  const url=`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify({entries,invoices},null,2))));
+  const body={message:`Update time log — ${new Date().toISOString().slice(0,10)}`,content,branch:GH_BRANCH};
+  if(sha)body.sha=sha;
+  const res=await fetch(url,{method:'PUT',headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!res.ok){const err=await res.json();throw new Error(err.message||`Write failed: ${res.status}`);}
+  return(await res.json()).content.sha;
+}
 async function validateToken(token){const res=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`,{headers:{Authorization:`token ${token}`}});return res.ok;}
+
+// ── Style primitives ──────────────────────────────────────────────────────────
 const inp={width:'100%',background:'#1e2333',border:'1px solid #2a3050',borderRadius:7,color:'#e8eaf0',fontSize:13,padding:'8px 10px',outline:'none',fontFamily:'inherit'};
 const lbl={fontSize:10,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:5,display:'block'};
 function FInput(p){const[f,sF]=useState(false);return<input {...p} style={{...inp,...(f?{borderColor:'#c9923a'}:{}),...(p.style||{})}} onFocus={()=>sF(true)} onBlur={()=>sF(false)}/>;}
 function FSelect({children,...p}){const[f,sF]=useState(false);return<select {...p} style={{...inp,...(f?{borderColor:'#c9923a'}:{})}} onFocus={()=>sF(true)} onBlur={()=>sF(false)}>{children}</select>;}
 function FTA(p){const[f,sF]=useState(false);return<textarea {...p} style={{...inp,minHeight:p.minh||60,resize:'vertical',...(f?{borderColor:'#c9923a'}:{})}} onFocus={()=>sF(true)} onBlur={()=>sF(false)}/>;}
-function Btn({children,variant='primary',onClick,style={},disabled=false,loading=false,small=false}){const[h,sH]=useState(false);const base={padding:small?'5px 12px':'10px 22px',border:'none',borderRadius:8,fontSize:small?11:13,fontWeight:700,cursor:disabled||loading?'not-allowed':'pointer',transition:'all 0.15s',display:'inline-flex',alignItems:'center',gap:6,fontFamily:'inherit'};const v={primary:{background:h&&!disabled?'#e8b56a':'#c9923a',color:'#0f1117',opacity:disabled||loading?0.6:1},ghost:{background:h?'rgba(201,146,58,0.2)':'rgba(201,146,58,0.12)',color:'#c9923a',border:'1px solid rgba(201,146,58,0.3)',padding:small?'4px 10px':'7px 14px',fontSize:small?10:12},danger:{background:'transparent',color:'#e05c5c',border:`1px solid ${h?'#e05c5c':'#2a3050'}`,padding:'5px 10px',fontSize:11},green:{background:h?'#4ca868':'#5cb87a',color:'#0f1117',opacity:disabled?0.6:1},blue:{background:h?'#3a7fc4':'#4a8fd4',color:'#fff',opacity:disabled?0.6:1}};return<button onClick={disabled||loading?undefined:onClick} style={{...base,...v[variant],...style}} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)}>{loading&&<span className="spin" style={{fontSize:12}}>⟳</span>}{children}</button>;}
+
+function Btn({children,variant='primary',onClick,style={},disabled=false,loading=false,small=false}){
+  const[h,sH]=useState(false);
+  const base={padding:small?'5px 12px':'10px 22px',border:'none',borderRadius:8,fontSize:small?11:13,fontWeight:700,cursor:disabled||loading?'not-allowed':'pointer',transition:'all 0.15s',display:'inline-flex',alignItems:'center',gap:6,fontFamily:'inherit'};
+  const v={primary:{background:h&&!disabled?'#e8b56a':'#c9923a',color:'#0f1117',opacity:disabled||loading?0.6:1},ghost:{background:h?'rgba(201,146,58,0.2)':'rgba(201,146,58,0.12)',color:'#c9923a',border:'1px solid rgba(201,146,58,0.3)',padding:small?'4px 10px':'7px 14px',fontSize:small?10:12},danger:{background:'transparent',color:'#e05c5c',border:`1px solid ${h?'#e05c5c':'#2a3050'}`,padding:'5px 10px',fontSize:11},green:{background:h?'#4ca868':'#5cb87a',color:'#0f1117',opacity:disabled?0.6:1},blue:{background:h?'#3a7fc4':'#4a8fd4',color:'#fff',opacity:disabled?0.6:1},neutral:{background:h?'#2a3050':'#1e2333',color:'#7a82a0',border:'1px solid #2a3050',padding:small?'4px 10px':'7px 14px',fontSize:small?10:12}};
+  return<button onClick={disabled||loading?undefined:onClick} style={{...base,...v[variant],...style}} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)}>{loading&&<span className="spin" style={{fontSize:12}}>⟳</span>}{children}</button>;
+}
+
 function Badge({cat}){const[bg,col]=CAT_COLOR[cat]||CAT_COLOR['Other'];return<span style={{display:'inline-block',padding:'3px 8px',borderRadius:4,fontSize:9,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',background:bg,color:col,whiteSpace:'nowrap'}}>{cat}</span>;}
 function SBadge({status}){const map={draft:['rgba(120,120,140,0.2)','#9090b0','Draft'],sent:['rgba(74,143,212,0.2)','#4a8fd4','Sent'],paid:['rgba(92,184,122,0.2)','#5cb87a','Paid'],overdue:['rgba(224,92,92,0.2)','#e05c5c','Overdue']};const[bg,col,label]=map[status]||map.draft;return<span style={{display:'inline-block',padding:'3px 8px',borderRadius:4,fontSize:9,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',background:bg,color:col}}>{label}</span>;}
 function SC({label,value,sub,accent,children}){return<div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:10,padding:'12px 14px'}}><div style={{fontSize:9,color:'#7a82a0',textTransform:'uppercase',letterSpacing:'1px',marginBottom:5}}>{label}</div><div style={{fontSize:20,fontWeight:700,fontFamily:"'DM Mono',monospace",color:accent||'#e8eaf0'}}>{value}</div>{sub&&<div style={{fontSize:10,color:'#7a82a0',marginTop:2}}>{sub}</div>}{children}</div>;}
 const TH=({cols})=><thead><tr>{cols.map(h=><th key={h} style={{fontSize:9,color:'#4a5270',textTransform:'uppercase',padding:'9px 16px',textAlign:'left',borderBottom:'1px solid #2a3050',fontFamily:'inherit',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>;
 
-function TokenModal({onSave}){const[tok,sT]=useState('');const[err,sE]=useState('');const[loading,sL]=useState(false);async function submit(){if(!tok.trim()){sE('Paste your GitHub token.');return;}sL(true);sE('');try{const ok=await validateToken(tok.trim());if(!ok){sE('Invalid token or no repo access. Check scopes (repo).');sL(false);return;}onSave(tok.trim());}catch(e){sE('Connection error.');sL(false);}}return<div className="modal-overlay"><div className="modal"><div style={{fontSize:16,fontWeight:700,marginBottom:6}}>🔐 GitHub Sync Setup</div><div style={{fontSize:12,color:'#7a82a0',marginBottom:20,lineHeight:1.6}}>Data saved to <strong style={{color:'#e8eaf0'}}>maruanbarakat-boop/rpa</strong>.<br/>Token stays in this browser only.</div><label style={lbl}>Personal Access Token</label><FInput type="password" placeholder="ghp_..." value={tok} onChange={e=>sT(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} style={{marginBottom:12,fontFamily:"'DM Mono',monospace"}}/>{err&&<div style={{fontSize:12,color:'#e05c5c',marginBottom:10,padding:'7px 10px',background:'rgba(224,92,92,0.1)',borderRadius:6}}>{err}</div>}<div style={{display:'flex',justifyContent:'flex-end'}}><Btn onClick={submit} loading={loading}>Connect to GitHub →</Btn></div></div></div>;}
+// ── Token Modal ───────────────────────────────────────────────────────────────
+function TokenModal({onSave}){
+  const[tok,sT]=useState('');const[err,sE]=useState('');const[loading,sL]=useState(false);
+  async function submit(){if(!tok.trim()){sE('Paste your GitHub token.');return;}sL(true);sE('');try{const ok=await validateToken(tok.trim());if(!ok){sE('Invalid token or no repo access. Check scopes (repo).');sL(false);return;}onSave(tok.trim());}catch(e){sE('Connection error.');sL(false);}}
+  return<div className="modal-overlay"><div className="modal">
+    <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>🔐 GitHub Sync Setup</div>
+    <div style={{fontSize:12,color:'#7a82a0',marginBottom:20,lineHeight:1.6}}>Data saved to <strong style={{color:'#e8eaf0'}}>maruanbarakat-boop/rpa</strong>.<br/>Token stays in this browser only.</div>
+    <label style={lbl}>Personal Access Token</label>
+    <FInput type="password" placeholder="ghp_..." value={tok} onChange={e=>sT(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} style={{marginBottom:12,fontFamily:"'DM Mono',monospace"}}/>
+    {err&&<div style={{fontSize:12,color:'#e05c5c',marginBottom:10,padding:'7px 10px',background:'rgba(224,92,92,0.1)',borderRadius:6}}>{err}</div>}
+    <div style={{display:'flex',justifyContent:'flex-end'}}><Btn onClick={submit} loading={loading}>Connect to GitHub →</Btn></div>
+  </div></div>;
+}
 
+// ── Add/Edit Entry Modal ──────────────────────────────────────────────────────
 function AddModal({onClose,onSave,editEntry=null}){
   const[fDate,sDate]=useState(editEntry?.date||todayStr());
   const[fStart,sStart]=useState(editEntry?.start||'');
@@ -65,7 +109,15 @@ function AddModal({onClose,onSave,editEntry=null}){
   const[fBill,sBill]=useState(editEntry?.bill||'yes');
   const[error,sErr]=useState('');
   const preview=calcH(fStart,fEnd,fHours);
-  function submit(){sErr('');const h=calcH(fStart,fEnd,fHours);if(!h){sErr('Enter hours via start/end or manual field.');return;}if(!fCat){sErr('Select a category.');return;}if(!fDesc.trim()){sErr('Enter a task description.');return;}onSave({id:editEntry?.id||Date.now().toString(),date:fDate||todayStr(),start:fStart,end:fEnd,hours:h,cat:fCat,desc:fDesc.trim(),note:fNote.trim(),bill:fBill});onClose();}
+  function submit(){
+    sErr('');
+    const h=calcH(fStart,fEnd,fHours);
+    if(!h){sErr('Enter hours via start/end or manual field.');return;}
+    if(!fCat){sErr('Select a category.');return;}
+    if(!fDesc.trim()){sErr('Enter a task description.');return;}
+    onSave({id:editEntry?.id||Date.now().toString(),date:fDate||todayStr(),start:fStart,end:fEnd,hours:h,cat:fCat,desc:fDesc.trim(),note:fNote.trim(),bill:fBill});
+    onClose();
+  }
   return<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className="modal">
     <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>{editEntry?'Edit Entry':'+ New Time Entry'}</div>
     <div style={{fontSize:12,color:'#7a82a0',marginBottom:20}}>RPA · Rockefeller Philanthropy Advisors · $150/hr</div>
@@ -89,24 +141,64 @@ function AddModal({onClose,onSave,editEntry=null}){
   </div></div>;
 }
 
+// ── Invoice Modal ─────────────────────────────────────────────────────────────
 function InvoiceModal({entries,invoices,onClose,onSave}){
+  const[type,sType]=useState('hours'); // 'hours' | 'custom'
   const months=[...new Set(entries.map(e=>mk(e.date)))].sort().reverse();
+  const nextNum='INV-RPA-00'+(invoices.length+1);
+
+  // Hours-based state
   const[selMonth,sSM]=useState(months[0]||'');
-  const[invNum,sIN]=useState('INV-RPA-00'+(invoices.length+2));
+  const[hNotes,sHN]=useState('Payment via ACH. Please send remittance confirmation to maruan.barakat@gmail.com.');
+
+  // Custom state
+  const[cNum,sCN]=useState(nextNum);
+  const[cDate,sCD]=useState(todayStr());
+  const[cDue,sCDue]=useState(addDays(todayStr(),30));
+  const[cDesc,sCDesc]=useState('');
+  const[cAmount,sCA]=useState('');
+  const[cNotes,sCN2]=useState('Payment via ACH. Please send remittance confirmation to maruan.barakat@gmail.com.');
+  const[cErr,sCErr]=useState('');
+
+  // Shared
+  const[invNum,sIN]=useState(nextNum);
   const[invDate,sID]=useState(todayStr());
-  const[dueDate,sDD]=useState(()=>{const d=new Date();d.setDate(d.getDate()+30);return d.toISOString().slice(0,10);});
-  const[notes,sN]=useState('Payment via ACH. Please send remittance confirmation to maruan.barakat@gmail.com.');
+  const[dueDate,sDD]=useState(addDays(todayStr(),30));
   const[preview,sP]=useState(false);
+
+  // Hours calculations
   const me=useMemo(()=>entries.filter(e=>e.date.startsWith(selMonth)&&e.bill==='yes'),[entries,selMonth]);
   const totalH=me.reduce((s,e)=>s+e.hours,0);
   const gross=totalH*RATE;
-  const allPrevGross=entries.filter(e=>e.bill==='yes'&&mk(e.date)<selMonth).reduce((s,e)=>s+e.hours*RATE,0);
-  const retRem=Math.max(0,RETAINER-allPrevGross);
-  const credit=Math.min(retRem,gross);
+  // Retainer credit: sum of all previous hours-based invoices' gross, capped at RETAINER
+  const paidRetainerInvs=invoices.filter(i=>i.type==='custom'&&i.isRetainer&&i.status==='paid');
+  const retainerAvailable=paidRetainerInvs.length>0?RETAINER:0;
+  const prevHoursGross=invoices.filter(i=>i.type==='hours'&&i.period<selMonth).reduce((s,i)=>s+i.gross,0);
+  const retainerUsed=Math.min(retainerAvailable,prevHoursGross);
+  const retainerLeft=Math.max(0,retainerAvailable-retainerUsed);
+  const credit=Math.min(retainerLeft,gross);
   const net=gross-credit;
-  const catMap={};me.forEach(e=>{if(!catMap[e.cat])catMap[e.cat]={hours:0,entries:[]};catMap[e.cat].hours+=e.hours;catMap[e.cat].entries.push(e);});
-  function saveInvoice(){onSave({id:Date.now().toString(),number:invNum,date:invDate,due:dueDate,period:selMonth,gross,credit,net,status:'draft',notes,sentAt:null,paidAt:null,paidAmount:0});onClose();}
-  const Preview=()=><div style={{background:'#fff',color:'#111',borderRadius:10,padding:32,fontSize:12,lineHeight:1.6}}>
+  const catMap={};me.forEach(e=>{if(!catMap[e.cat])catMap[e.cat]={hours:0};catMap[e.cat].hours+=e.hours;});
+
+  function saveHours(){
+    onSave({id:Date.now().toString(),type:'hours',number:invNum,date:invDate,due:dueDate,period:selMonth,hours:totalH,gross,credit,net,status:'draft',notes:hNotes,sentAt:null,paidAt:null,paidAmount:0});
+    onClose();
+  }
+  function saveCustom(){
+    sCErr('');
+    const amt=parseFloat(cAmount);
+    if(!cNum.trim()){sCErr('Enter an invoice number.');return;}
+    if(!cDesc.trim()){sCErr('Enter a description.');return;}
+    if(!amt||amt<=0){sCErr('Enter a valid amount.');return;}
+    const isRetainer=cDesc.toLowerCase().includes('retainer');
+    onSave({id:Date.now().toString(),type:'custom',number:cNum,date:cDate,due:cDue,description:cDesc.trim(),gross:amt,credit:0,net:amt,status:'draft',notes:cNotes2,sentAt:null,paidAt:null,paidAmount:0,isRetainer});
+    onClose();
+  }
+
+  // Fix: cNotes2 not defined above
+  const[cNotes2,sCN3]=useState('Payment via ACH. Please send remittance confirmation to maruan.barakat@gmail.com.');
+
+  const HoursPreview=()=><div style={{background:'#fff',color:'#111',borderRadius:10,padding:32,fontSize:12,lineHeight:1.6}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:28,paddingBottom:20,borderBottom:'2px solid #e8e8e8'}}>
       <div><div style={{fontSize:20,fontWeight:700,marginBottom:4}}>INVOICE</div><div style={{fontWeight:600}}>Maruan Barakat Consulting</div><div style={{color:'#555'}}>10551 Petrillo Way, Winter Garden, FL 34787<br/>maruan.barakat@gmail.com · (617) 820-9557</div></div>
       <div style={{textAlign:'right'}}><div style={{fontSize:22,fontWeight:700,color:'#c9923a',marginBottom:8}}>{invNum}</div><div style={{color:'#555',fontSize:11}}><div>Invoice Date: <strong style={{color:'#111'}}>{fdl(invDate)}</strong></div><div>Due Date: <strong style={{color:'#111'}}>{fdl(dueDate)}</strong></div><div>Period: <strong style={{color:'#111'}}>{ml(selMonth)}</strong></div></div></div>
@@ -119,24 +211,39 @@ function InvoiceModal({entries,invoices,onClose,onSave}){
       <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0',fontWeight:700,fontSize:15}}><span>Total Due</span><span style={{fontFamily:'monospace',color:'#c9923a'}}>{fm$(net)}</span></div>
     </div></div>
     <div style={{marginBottom:20}}><div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:1,color:'#888',marginBottom:8}}>Work Log Detail</div>
-      <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}><thead><tr style={{background:'#f9f9f9'}}>{['Date','Category','Description','Hours'].map(h=><th key={h} style={{padding:'6px 10px',textAlign:'left',color:'#888',fontWeight:600}}>{h}</th>)}</tr></thead><tbody>{me.sort((a,b)=>a.date.localeCompare(b.date)).map(e=><tr key={e.id} style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'6px 10px',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fd(e.date)}</td><td style={{padding:'6px 10px'}}>{e.cat}</td><td style={{padding:'6px 10px',color:'#444'}}>{e.desc}</td><td style={{padding:'6px 10px',fontFamily:'monospace'}}>{fh(e.hours)}</td></tr>)}</tbody></table>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}><thead><tr style={{background:'#f9f9f9'}}>{['Date','Category','Description','Hours'].map(h=><th key={h} style={{padding:'6px 10px',textAlign:'left',color:'#888',fontWeight:600}}>{h}</th>)}</tr></thead>
+      <tbody>{me.sort((a,b)=>a.date.localeCompare(b.date)).map(e=><tr key={e.id} style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'6px 10px',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fd(e.date)}</td><td style={{padding:'6px 10px'}}>{e.cat}</td><td style={{padding:'6px 10px',color:'#444'}}>{e.desc}</td><td style={{padding:'6px 10px',fontFamily:'monospace'}}>{fh(e.hours)}</td></tr>)}</tbody></table>
     </div>
-    {notes&&<div style={{borderTop:'1px solid #eee',paddingTop:16,color:'#555',fontSize:11}}><strong>Notes:</strong> {notes}</div>}
+    {hNotes&&<div style={{borderTop:'1px solid #eee',paddingTop:16,color:'#555',fontSize:11}}><strong>Notes:</strong> {hNotes}</div>}
   </div>;
+
+  // Type toggle
+  const TypeBtn=({id,label,sub})=><div onClick={()=>sType(id)} style={{flex:1,padding:'12px 14px',borderRadius:8,border:`1px solid ${type===id?'#c9923a':'#2a3050'}`,background:type===id?'rgba(201,146,58,0.08)':'#1e2333',cursor:'pointer',transition:'all 0.15s'}}>
+    <div style={{fontSize:12,fontWeight:600,color:type===id?'#c9923a':'#e8eaf0',marginBottom:2}}>{label}</div>
+    <div style={{fontSize:10,color:'#7a82a0'}}>{sub}</div>
+  </div>;
+
   return<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className="modal modal-lg">
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
-      <div><div style={{fontSize:16,fontWeight:700,marginBottom:4}}>📄 Invoice Generator</div><div style={{fontSize:12,color:'#7a82a0'}}>Generate a ready-to-send invoice from logged hours</div></div>
+    <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>📄 Invoice Generator</div>
+    <div style={{fontSize:12,color:'#7a82a0',marginBottom:20}}>Rockefeller Philanthropy Advisors · Net 30 · ACH</div>
+
+    {/* Type toggle */}
+    <div style={{display:'flex',gap:10,marginBottom:20}}>
+      <TypeBtn id="hours" label="Hours-Based Invoice" sub="Generated from logged time entries"/>
+      <TypeBtn id="custom" label="Custom Invoice" sub="Fixed amount — retainer, expenses, etc."/>
     </div>
-    {!preview?<>
+
+    {/* HOURS BASED */}
+    {type==='hours'&&!preview&&<>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-        <div><label style={lbl}>Billing Period</label><FSelect value={selMonth} onChange={e=>sSM(e.target.value)}>{months.map(m=><option key={m} value={m}>{ml(m)}</option>)}</FSelect></div>
+        <div><label style={lbl}>Billing Period</label><FSelect value={selMonth} onChange={e=>sSM(e.target.value)}>{months.length?months.map(m=><option key={m} value={m}>{ml(m)}</option>):<option value="">No entries yet</option>}</FSelect></div>
         <div><label style={lbl}>Invoice Number</label><FInput value={invNum} onChange={e=>sIN(e.target.value)}/></div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
         <div><label style={lbl}>Invoice Date</label><FInput type="date" value={invDate} onChange={e=>sID(e.target.value)}/></div>
         <div><label style={lbl}>Due Date (Net 30)</label><FInput type="date" value={dueDate} onChange={e=>sDD(e.target.value)}/></div>
       </div>
-      <div style={{marginBottom:16}}><label style={lbl}>Notes</label><FTA value={notes} onChange={e=>sN(e.target.value)}/></div>
+      <div style={{marginBottom:16}}><label style={lbl}>Notes</label><FTA value={hNotes} onChange={e=>sHN(e.target.value)}/></div>
       <div style={{background:'#1e2333',borderRadius:10,padding:16,marginBottom:20,display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
         <div><div style={{fontSize:10,color:'#7a82a0',marginBottom:4}}>HOURS</div><div style={{fontFamily:"'DM Mono',monospace",fontSize:18,fontWeight:700}}>{fh(totalH)}</div></div>
         <div><div style={{fontSize:10,color:'#7a82a0',marginBottom:4}}>GROSS</div><div style={{fontFamily:"'DM Mono',monospace",fontSize:18,fontWeight:700}}>{fm$(gross)}</div></div>
@@ -144,18 +251,43 @@ function InvoiceModal({entries,invoices,onClose,onSave}){
       </div>
       <div style={{display:'flex',justifyContent:'space-between'}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <div style={{display:'flex',gap:10}}><Btn variant="ghost" small onClick={()=>sP(true)}>Preview →</Btn><Btn onClick={saveInvoice} disabled={!selMonth||totalH===0}>Save Draft →</Btn></div>
+        <div style={{display:'flex',gap:10}}><Btn variant="ghost" small onClick={()=>sP(true)}>Preview →</Btn><Btn onClick={saveHours} disabled={!selMonth||totalH===0}>Save Draft →</Btn></div>
       </div>
-    </>:<>
-      <div style={{marginBottom:16,overflowY:'auto',maxHeight:'60vh'}}><Preview/></div>
+    </>}
+
+    {type==='hours'&&preview&&<>
+      <div style={{marginBottom:16,overflowY:'auto',maxHeight:'60vh'}}><HoursPreview/></div>
       <div style={{display:'flex',justifyContent:'space-between'}}>
         <Btn variant="ghost" onClick={()=>sP(false)}>← Edit</Btn>
-        <div style={{display:'flex',gap:10}}><Btn variant="blue" onClick={()=>window.print()}>🖨 Print / PDF</Btn><Btn onClick={saveInvoice} disabled={!selMonth||totalH===0}>Save Draft →</Btn></div>
+        <div style={{display:'flex',gap:10}}><Btn variant="blue" onClick={()=>window.print()}>🖨 Print / PDF</Btn><Btn onClick={saveHours} disabled={!selMonth||totalH===0}>Save Draft →</Btn></div>
+      </div>
+    </>}
+
+    {/* CUSTOM */}
+    {type==='custom'&&<>
+      <div style={{background:'rgba(201,146,58,0.06)',border:'1px solid rgba(201,146,58,0.2)',borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:11,color:'#e8b56a'}}>
+        💡 Use this for the <strong>INV-RPA-001 retainer</strong> ($6,000), expense reimbursements, or any fixed-fee invoice.
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+        <div><label style={lbl}>Invoice Number</label><FInput value={cNum} onChange={e=>sCN(e.target.value)}/></div>
+        <div><label style={lbl}>Amount ($)</label><FInput type="number" placeholder="6000.00" step="0.01" min="0" value={cAmount} onChange={e=>sCA(e.target.value)}/></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+        <div><label style={lbl}>Invoice Date</label><FInput type="date" value={cDate} onChange={e=>sCD(e.target.value)}/></div>
+        <div><label style={lbl}>Due Date</label><FInput type="date" value={cDue} onChange={e=>sCDue(e.target.value)}/></div>
+      </div>
+      <div style={{marginBottom:12}}><label style={lbl}>Description</label><FTA minh={50} placeholder="e.g. Retainer — 20% upfront per Consulting Agreement dated April 28, 2026. Applied as credit against subsequent monthly invoices." value={cDesc} onChange={e=>sCDesc(e.target.value)}/></div>
+      <div style={{marginBottom:16}}><label style={lbl}>Notes</label><FTA value={cNotes2} onChange={e=>sCN3(e.target.value)}/></div>
+      {cErr&&<div style={{fontSize:12,color:'#e05c5c',marginBottom:10,padding:'7px 10px',background:'rgba(224,92,92,0.1)',borderRadius:6}}>{cErr}</div>}
+      <div style={{display:'flex',justifyContent:'space-between'}}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={saveCustom}>Save Draft →</Btn>
       </div>
     </>}
   </div></div>;
 }
 
+// ── Main App ──────────────────────────────────────────────────────────────────
 function App(){
   const[token,sToken]=useState(()=>localStorage.getItem(TOKEN_KEY)||'');
   const[entries,sEntries]=useState([]);
@@ -172,9 +304,21 @@ function App(){
   const[expandNote,sExpandNote]=useState(null);
   const saveTimer=useRef(null);
 
-  useEffect(()=>{if(!token)return;sSyncSt('loading');ghRead(token).then(({entries:e,invoices:i,sha:s})=>{sEntries(e);sInvoices(i||[]);sSha(s);sSyncSt('idle');}).catch(err=>{sSyncSt('error');sSyncMsg('Load failed: '+err.message);});},[token]);
+  useEffect(()=>{
+    if(!token)return;
+    sSyncSt('loading');
+    ghRead(token).then(({entries:e,invoices:i,sha:s})=>{sEntries(e);sInvoices(i||[]);sSha(s);sSyncSt('idle');})
+      .catch(err=>{sSyncSt('error');sSyncMsg('Load failed: '+err.message);});
+  },[token]);
 
-  function scheduleSave(e,i,s){if(saveTimer.current)clearTimeout(saveTimer.current);sSyncSt('saving');saveTimer.current=setTimeout(async()=>{try{const ns=await ghWrite(token,e,i,s);sSha(ns);sSyncSt('saved');setTimeout(()=>sSyncSt('idle'),2500);}catch(err){sSyncSt('error');sSyncMsg('Save failed: '+err.message);}},1200);}
+  function scheduleSave(e,i,s){
+    if(saveTimer.current)clearTimeout(saveTimer.current);
+    sSyncSt('saving');
+    saveTimer.current=setTimeout(async()=>{
+      try{const ns=await ghWrite(token,e,i,s);sSha(ns);sSyncSt('saved');setTimeout(()=>sSyncSt('idle'),2500);}
+      catch(err){sSyncSt('error');sSyncMsg('Save failed: '+err.message);}
+    },1200);
+  }
 
   function addEntry(e){sEntries(prev=>{const n=[e,...prev.filter(x=>x.id!==e.id)];scheduleSave(n,invoices,sha);return n;});}
   function delEntry(id){if(!window.confirm('Remove this entry?'))return;sEntries(prev=>{const n=prev.filter(e=>e.id!==id);scheduleSave(n,invoices,sha);return n;});}
@@ -184,6 +328,7 @@ function App(){
   function handleToken(t){localStorage.setItem(TOKEN_KEY,t);sToken(t);}
   function resetToken(){if(!window.confirm('Disconnect GitHub?'))return;localStorage.removeItem(TOKEN_KEY);sToken('');sEntries([]);sInvoices([]);sSha(null);}
 
+  // Financial stats — calculated entirely from invoices array
   const t=todayStr(),tm=t.slice(0,7);
   const todH=entries.filter(e=>e.date===t).reduce((s,e)=>s+e.hours,0);
   const monH=entries.filter(e=>e.date.startsWith(tm)).reduce((s,e)=>s+e.hours,0);
@@ -191,8 +336,9 @@ function App(){
   const monB=entries.filter(e=>e.date.startsWith(tm)&&e.bill==='yes').reduce((s,e)=>s+e.hours,0);
   const totB=entries.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);
   const totalInvoiced=invoices.reduce((s,i)=>s+i.net,0);
-  const totalPaid=invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+(i.paidAmount||i.net),0);
+  const totalReceived=invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+(i.paidAmount||i.net),0);
   const totalOutstanding=invoices.filter(i=>['sent','overdue'].includes(i.status)).reduce((s,i)=>s+i.net,0);
+
   const months=[...new Set(entries.map(e=>mk(e.date)))].sort().reverse();
   const cats=[...new Set(entries.map(e=>e.cat))].sort();
   const filtered=entries.filter(e=>{if(filMonth!=='all'&&!e.date.startsWith(filMonth))return false;if(filCat!=='all'&&e.cat!==filCat)return false;return true;});
@@ -200,11 +346,17 @@ function App(){
   const filtB=filtered.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);
 
   const weeklyData=useMemo(()=>{const wMap={};entries.forEach(e=>{const w=weekOf(e.date);if(!wMap[w])wMap[w]={week:w,hours:0,billable:0,amount:0,cats:{}};wMap[w].hours+=e.hours;if(e.bill==='yes'){wMap[w].billable+=e.hours;wMap[w].amount+=e.hours*RATE;}wMap[w].cats[e.cat]=(wMap[w].cats[e.cat]||0)+e.hours;});return Object.values(wMap).sort((a,b)=>b.week.localeCompare(a.week));},[entries]);
-  const monthlyData=useMemo(()=>months.map(m=>{const me=entries.filter(e=>e.date.startsWith(m));const bh=me.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);const inv=invoices.find(i=>i.period===m);return{month:m,hours:me.reduce((s,e)=>s+e.hours,0),billable:bh,gross:bh*RATE,invoice:inv};}),[entries,invoices,months]);
+  const monthlyData=useMemo(()=>months.map(m=>{const me=entries.filter(e=>e.date.startsWith(m));const bh=me.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);const inv=invoices.find(i=>i.type==='hours'&&i.period===m);return{month:m,hours:me.reduce((s,e)=>s+e.hours,0),billable:bh,gross:bh*RATE,invoice:inv};}),[entries,invoices,months]);
 
   function exportCSV(){const hdr='Date,Start,End,Hours,Category,Description,Notes,Billable,Amount\n';const rows=filtered.map(e=>`${e.date},${e.start||''},${e.end||''},${e.hours},"${e.cat}","${e.desc.replace(/"/g,'""')}","${(e.note||'').replace(/"/g,'""')}",${e.bill},${e.bill==='yes'?(e.hours*RATE).toFixed(2):0}`).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([hdr+rows],{type:'text/csv'}));a.download=`RPA_TimeLog_${filMonth==='all'?'All':filMonth}.csv`;a.click();}
 
-  const syncInd=()=>{if(syncSt==='loading')return<span className="pulse" style={{fontSize:11,color:'#7a82a0'}}>⟳ Loading...</span>;if(syncSt==='saving')return<span className="pulse" style={{fontSize:11,color:'#c9923a'}}>⟳ Saving...</span>;if(syncSt==='saved')return<span style={{fontSize:11,color:'#5cb87a'}}>✓ Saved</span>;if(syncSt==='error')return<span style={{fontSize:11,color:'#e05c5c'}} title={syncMsg}>⚠ Error</span>;return<span style={{fontSize:11,color:'#4a5270'}}>GitHub sync active</span>;};
+  const syncInd=()=>{
+    if(syncSt==='loading')return<span className="pulse" style={{fontSize:11,color:'#7a82a0'}}>⟳ Loading...</span>;
+    if(syncSt==='saving')return<span className="pulse" style={{fontSize:11,color:'#c9923a'}}>⟳ Saving...</span>;
+    if(syncSt==='saved')return<span style={{fontSize:11,color:'#5cb87a'}}>✓ Saved</span>;
+    if(syncSt==='error')return<span style={{fontSize:11,color:'#e05c5c'}} title={syncMsg}>⚠ Error</span>;
+    return<span style={{fontSize:11,color:'#4a5270'}}>GitHub sync active</span>;
+  };
   const tabSt=id=>({padding:'10px 18px',fontSize:12,fontWeight:500,cursor:'pointer',color:tab===id?'#c9923a':'#7a82a0',borderBottom:tab===id?'2px solid #c9923a':'2px solid transparent',userSelect:'none',transition:'all 0.15s'});
   const selSt={background:'#1e2333',border:'1px solid #2a3050',borderRadius:6,color:'#7a82a0',fontSize:11,padding:'5px 8px',cursor:'pointer',fontFamily:'inherit'};
 
@@ -218,20 +370,48 @@ function App(){
     <td style={{padding:'10px 16px'}}><div style={{display:'flex',gap:6}}><Btn variant="ghost" small onClick={()=>{sEditEnt(e);sShowAdd(true);}}>✏</Btn><Btn variant="danger" onClick={()=>delEntry(e.id)}>✕</Btn></div></td>
   </tr>;
 
+  const InvoiceRow=({inv})=>{
+    const label=inv.type==='custom'?(inv.isRetainer?'Retainer':inv.description||'Custom'):ml(inv.period||'');
+    return<div style={{padding:'13px 16px',borderBottom:'1px solid rgba(42,48,80,0.35)',display:'grid',gridTemplateColumns:'1.2fr 0.9fr 1.4fr 0.9fr 0.7fr 2fr',gap:8,alignItems:'center',background:inv.isRetainer?'rgba(201,146,58,0.03)':'transparent'}}>
+      <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:600}}>{inv.number}</div>
+      <div style={{fontSize:12,color:'#7a82a0'}}>{fd(inv.date)}</div>
+      <div style={{fontSize:12,color:'#7a82a0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={label}>{label}</div>
+      <div style={{fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(inv.net)}</div>
+      <SBadge status={inv.status}/>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+        {inv.status==='draft'&&<><Btn variant="blue" small onClick={()=>updateInvoice(inv.id,{status:'sent',sentAt:todayStr()})}>Mark Sent</Btn></>}
+        {(inv.status==='sent'||inv.status==='overdue')&&<Btn variant="green" small onClick={()=>{const a=window.prompt('Amount received ($):',String(inv.net));if(a!=null){const v=parseFloat(a);if(!isNaN(v))updateInvoice(inv.id,{status:'paid',paidAt:todayStr(),paidAmount:v});}}}>✓ Mark Paid</Btn>}
+        {inv.status==='sent'&&<Btn variant="danger" small onClick={()=>updateInvoice(inv.id,{status:'overdue'})}>Overdue</Btn>}
+        {inv.status==='overdue'&&<Btn variant="neutral" small onClick={()=>updateInvoice(inv.id,{status:'sent'})}>↩ Sent</Btn>}
+        {inv.status==='paid'&&<span style={{fontSize:10,color:'#5cb87a'}}>✓ {inv.paidAt?fd(inv.paidAt):''} · {fm$(inv.paidAmount||inv.net)}</span>}
+        {inv.status==='draft'&&<Btn variant="neutral" small onClick={()=>updateInvoice(inv.id,{status:'sent',sentAt:todayStr()})}>→</Btn>}
+        <Btn variant="danger" onClick={()=>delInvoice(inv.id)}>✕</Btn>
+      </div>
+    </div>;
+  };
+
   if(!token)return<TokenModal onSave={handleToken}/>;
 
   return<div style={{background:'#0f1117',minHeight:'100vh',color:'#e8eaf0'}}>
+
     {/* Header */}
     <div style={{background:'#181c27',borderBottom:'1px solid #2a3050',padding:'14px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:50}}>
       <div style={{display:'flex',alignItems:'center',gap:12}}>
         <div style={{width:36,height:36,background:'#c9923a',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'#0f1117',flexShrink:0}}>MB</div>
         <div>
           <div style={{fontSize:14,fontWeight:600}}>Maruan Barakat Consulting</div>
-          <div style={{fontSize:11,color:'#7a82a0',marginTop:1,display:'flex',alignItems:'center',gap:8}}>Time Tracker v2 — RPA<span style={{display:'inline-block',width:5,height:5,borderRadius:'50%',background:syncSt==='error'?'#e05c5c':syncSt==='saved'?'#5cb87a':'#4a5270'}}/>{syncInd()}</div>
+          <div style={{fontSize:11,color:'#7a82a0',marginTop:1,display:'flex',alignItems:'center',gap:8}}>
+            Time Tracker v2 — RPA
+            <span style={{display:'inline-block',width:5,height:5,borderRadius:'50%',background:syncSt==='error'?'#e05c5c':syncSt==='saved'?'#5cb87a':'#4a5270'}}/>
+            {syncInd()}
+          </div>
         </div>
       </div>
       <div style={{display:'flex',alignItems:'center',gap:12}}>
-        <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#7a82a0'}}>$150/hr · {MAX_H}h contract · Net 30 ACH</div><div style={{fontSize:17,fontWeight:700,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>{fm$(totB*RATE)} logged</div></div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontSize:10,color:'#7a82a0'}}>$150/hr · {MAX_H}h contract · Net 30 ACH</div>
+          <div style={{fontSize:17,fontWeight:700,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>{fm$(totB*RATE)} logged</div>
+        </div>
         <Btn variant="ghost" small onClick={()=>sShowInv(true)}>📄 Invoice</Btn>
         <Btn onClick={()=>sShowAdd(true)}>+ Entry</Btn>
       </div>
@@ -251,7 +431,7 @@ function App(){
           <SC label="Today" value={fh(todH)} sub={fd(t)}/>
           <SC label="This Month" value={fh(monH)} sub={ml(tm)}/>
           <SC label="Total Logged" value={fh(totH)} accent="#c9923a" sub={`${(MAX_H-totH).toFixed(2)}h remaining`}><div style={{height:3,background:'#2a3050',borderRadius:2,overflow:'hidden',marginTop:6}}><div style={{height:'100%',background:'#c9923a',borderRadius:2,width:Math.min(totH/MAX_H*100,100)+'%',transition:'width 0.3s'}}/></div></SC>
-          <SC label="Outstanding" value={fm$(totalOutstanding)} sub={`${fm$(totalPaid)} received`} accent={totalOutstanding>0?'#e8b56a':'#5cb87a'}/>
+          <SC label="Outstanding" value={fm$(totalOutstanding)} sub={`${fm$(totalReceived)} received`} accent={totalOutstanding>0?'#e8b56a':'#5cb87a'}/>
         </div>
         <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden'}}>
           <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -260,9 +440,7 @@ function App(){
           </div>
           {syncSt==='loading'?<div style={{textAlign:'center',padding:52,color:'#4a5270'}}><span className="spin" style={{fontSize:20}}>⟳</span><div style={{marginTop:10,fontSize:12}}>Loading from GitHub...</div></div>
           :entries.length===0?<div style={{textAlign:'center',padding:52,color:'#4a5270'}}><div style={{fontSize:28,marginBottom:10}}>⏱</div><div>No entries yet.</div></div>
-          :<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse'}}><TH cols={['Date','Category','Description','Notes','Hours','Amount','']}/><tbody>{entries.slice(0,8).map(e=><EntryRow key={e.id} e={e}/>)}</tbody></table>
-            {entries.length>8&&<div style={{textAlign:'center',padding:'12px',borderTop:'1px solid #2a3050'}}><span style={{fontSize:12,color:'#7a82a0',cursor:'pointer'}} onClick={()=>sTab('entries')}>View all {entries.length} entries →</span></div>}
-          </div>}
+          :<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse'}}><TH cols={['Date','Category','Description','Notes','Hours','Amount','']}/><tbody>{entries.slice(0,8).map(e=><EntryRow key={e.id} e={e}/>)}</tbody></table>{entries.length>8&&<div style={{textAlign:'center',padding:'12px',borderTop:'1px solid #2a3050'}}><span style={{fontSize:12,color:'#7a82a0',cursor:'pointer'}} onClick={()=>sTab('entries')}>View all {entries.length} entries →</span></div>}</div>}
         </div>
       </>}
 
@@ -291,7 +469,7 @@ function App(){
         <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden',marginBottom:20}}>
           <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>Monthly Summary</div>
           {monthlyData.length===0?<div style={{textAlign:'center',padding:40,color:'#4a5270'}}>No data yet.</div>
-          :<table style={{width:'100%',borderCollapse:'collapse'}}><TH cols={['Month','Hours','Billable','Gross','Invoice','Status']}/><tbody>{monthlyData.map(m=><tr key={m.month} style={{borderBottom:'1px solid rgba(42,48,80,0.4)'}}><td style={{padding:'11px 16px',fontWeight:600}}>{ml(m.month)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fh(m.hours)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12,color:'#c9923a'}}>{fh(m.billable)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(m.gross)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{m.invoice?m.invoice.number:'—'}</td><td style={{padding:'11px 16px'}}>{m.invoice?<SBadge status={m.invoice.status}/>:<span style={{fontSize:11,color:'#4a5270'}}>Not invoiced</span>}</td></tr>)}</tbody></table>}
+          :<table style={{width:'100%',borderCollapse:'collapse'}}><TH cols={['Month','Hours','Billable','Gross','Invoice','Status']}/><tbody>{monthlyData.map(m=><tr key={m.month} style={{borderBottom:'1px solid rgba(42,48,80,0.4)'}}><td style={{padding:'11px 16px',fontWeight:600}}>{ml(m.month)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fh(m.hours)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12,color:'#c9923a'}}>{fh(m.billable)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(m.gross)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:11}}>{m.invoice?m.invoice.number:'—'}</td><td style={{padding:'11px 16px'}}>{m.invoice?<SBadge status={m.invoice.status}/>:<span style={{fontSize:11,color:'#4a5270'}}>Not invoiced</span>}</td></tr>)}</tbody></table>}
         </div>
         <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden'}}>
           <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>Weekly Summary</div>
@@ -304,40 +482,27 @@ function App(){
       {tab==='payments'&&<>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
           <SC label="Total Invoiced" value={fm$(totalInvoiced)} sub={`${invoices.length} invoice(s)`}/>
-          <SC label="Received" value={fm$(totalPaid)} sub="Confirmed payments" accent="#5cb87a"/>
+          <SC label="Received" value={fm$(totalReceived)} sub="Confirmed payments" accent="#5cb87a"/>
           <SC label="Outstanding" value={fm$(totalOutstanding)} sub="Sent, awaiting payment" accent={totalOutstanding>0?'#e8b56a':'#5cb87a'}/>
-          <SC label="Retainer Balance" value={fm$(Math.max(0,RETAINER-totalInvoiced))} sub="INV-RPA-001 credit remaining" accent="#c9923a"/>
+          <SC label="Hours Value" value={fm$(totB*RATE)} sub={`${fh(totB)} billable logged`} accent="#c9923a"/>
         </div>
         <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden'}}>
           <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div style={{fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>Invoices</div>
-            <Btn small onClick={()=>sShowInv(true)}>+ Generate Invoice</Btn>
+            <Btn small onClick={()=>sShowInv(true)}>+ New Invoice</Btn>
           </div>
-          {/* Retainer */}
-          <div style={{padding:'12px 16px',borderBottom:'1px solid rgba(42,48,80,0.4)',display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr 0.8fr 1.5fr',gap:8,alignItems:'center',background:'rgba(92,184,122,0.04)'}}>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:600}}>INV-RPA-001</div>
-            <div style={{fontSize:12,color:'#7a82a0'}}>Apr 28, 2026</div>
-            <div style={{fontSize:12,color:'#7a82a0'}}>Retainer</div>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(RETAINER)}</div>
-            <SBadge status="paid"/>
-            <div style={{fontSize:11,color:'#5cb87a'}}>Applied as credit</div>
+          {/* Column headers */}
+          <div style={{display:'grid',gridTemplateColumns:'1.2fr 0.9fr 1.4fr 0.9fr 0.7fr 2fr',gap:8,padding:'8px 16px',borderBottom:'1px solid #2a3050'}}>
+            {['Invoice #','Date','Description','Amount','Status','Actions'].map(h=><div key={h} style={{fontSize:9,color:'#4a5270',textTransform:'uppercase',letterSpacing:1,fontWeight:600}}>{h}</div>)}
           </div>
-          {invoices.length===0?<div style={{textAlign:'center',padding:40,color:'#4a5270'}}>No invoices yet. Click "+ Generate Invoice" to create your first.</div>
-          :invoices.map(inv=><div key={inv.id} style={{padding:'12px 16px',borderBottom:'1px solid rgba(42,48,80,0.4)',display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr 0.8fr 1.5fr',gap:8,alignItems:'center'}}>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:600}}>{inv.number}</div>
-            <div style={{fontSize:12,color:'#7a82a0'}}>{fd(inv.date)}</div>
-            <div style={{fontSize:12,color:'#7a82a0'}}>{ml(inv.period)}</div>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(inv.net)}</div>
-            <SBadge status={inv.status}/>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {inv.status==='draft'&&<Btn variant="blue" small onClick={()=>updateInvoice(inv.id,{status:'sent',sentAt:todayStr()})}>Mark Sent</Btn>}
-              {inv.status==='sent'&&<Btn variant="green" small onClick={()=>{const a=window.prompt('Amount received:',String(inv.net));if(a)updateInvoice(inv.id,{status:'paid',paidAt:todayStr(),paidAmount:parseFloat(a)||inv.net});}}>Mark Paid</Btn>}
-              {inv.status==='sent'&&<Btn variant="danger" small onClick={()=>updateInvoice(inv.id,{status:'overdue'})}>Overdue</Btn>}
-              {inv.status==='overdue'&&<Btn variant="green" small onClick={()=>{const a=window.prompt('Amount received:',String(inv.net));if(a)updateInvoice(inv.id,{status:'paid',paidAt:todayStr(),paidAmount:parseFloat(a)||inv.net});}}>Mark Paid</Btn>}
-              {inv.status==='paid'&&<span style={{fontSize:10,color:'#5cb87a'}}>✓ {inv.paidAt?fd(inv.paidAt):''}</span>}
-              <Btn variant="danger" onClick={()=>delInvoice(inv.id)}>✕</Btn>
-            </div>
-          </div>)}
+          {invoices.length===0
+            ?<div style={{textAlign:'center',padding:48,color:'#4a5270',fontSize:12}}>
+                <div style={{fontSize:24,marginBottom:12}}>📄</div>
+                <div style={{marginBottom:8}}>No invoices yet.</div>
+                <div style={{fontSize:11}}>Start with <strong style={{color:'#c9923a'}}>+ New Invoice → Custom Invoice</strong> to create INV-RPA-001 (retainer $6,000).</div>
+              </div>
+            :invoices.sort((a,b)=>a.date.localeCompare(b.date)).map(inv=><InvoiceRow key={inv.id} inv={inv}/>)
+          }
         </div>
       </>}
 
