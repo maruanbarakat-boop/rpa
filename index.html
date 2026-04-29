@@ -3,462 +3,266 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RPA Time Tracker — Maruan Barakat Consulting</title>
+<title>RPA Time Tracker v2 — Maruan Barakat Consulting</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg:#0f1117; --surf:#181c27; --surf2:#1e2333; --bdr:#2a3050;
-    --gold:#c9923a; --goldl:#e8b56a; --golddim:rgba(201,146,58,0.12);
-    --txt:#e8eaf0; --muted:#7a82a0; --dim:#4a5270;
-    --red:#e05c5c; --green:#5cb87a;
-  }
-  body { font-family:'Sora',system-ui,sans-serif; background:var(--bg); color:var(--txt); min-height:100vh; }
-  ::-webkit-scrollbar { width:6px; }
-  ::-webkit-scrollbar-track { background:var(--bg); }
-  ::-webkit-scrollbar-thumb { background:var(--bdr); border-radius:3px; }
-  .modal-overlay {
-    position:fixed; inset:0; background:rgba(0,0,0,0.75);
-    display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px;
-  }
-  .modal {
-    background:var(--surf); border:1px solid var(--bdr);
-    border-radius:14px; padding:28px; max-width:480px; width:100%;
-    box-shadow:0 24px 60px rgba(0,0,0,0.6);
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spin { animation: spin 0.8s linear infinite; display:inline-block; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-  .pulse { animation: pulse 1.5s ease infinite; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f1117;--surf:#181c27;--surf2:#1e2333;--bdr:#2a3050;--gold:#c9923a;--goldl:#e8b56a;--golddim:rgba(201,146,58,0.12);--txt:#e8eaf0;--muted:#7a82a0;--dim:#4a5270;--red:#e05c5c;--green:#5cb87a;--blue:#4a8fd4}
+body{font-family:'Sora',system-ui,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;overflow-y:auto}
+.modal{background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:28px;max-width:560px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.6)}
+.modal-lg{max-width:780px}
+@keyframes spin{to{transform:rotate(360deg)}}.spin{animation:spin 0.8s linear infinite;display:inline-block}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}.pulse{animation:pulse 1.5s ease infinite}
+@media print{body{background:#fff;color:#000}.no-print{display:none!important}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useCallback, useRef } = React;
+const{useState,useEffect,useRef,useMemo}=React;
+const GH_OWNER='maruanbarakat-boop',GH_REPO='rpa',GH_BRANCH='main',GH_FILE='tracker_data.json',TOKEN_KEY='rpa_gh_token',RATE=150,MAX_H=200,RETAINER=6000;
+const CATS=['Kickoff / Onboarding','Exchange Online','Azure AD / Entra ID','Intune / Autopilot','SharePoint / Teams / OneDrive','Microsoft Defender','PowerShell / Automation','Security Administration','Vendor Management','Project Meetings','Assessment / Audit','Documentation','Other'];
+const CAT_COLOR={'Kickoff / Onboarding':['rgba(74,111,165,0.2)','#7aa3d4'],'Exchange Online':['rgba(70,180,150,0.2)','#5cc9a7'],'Azure AD / Entra ID':['rgba(140,100,200,0.2)','#b08ae0'],'Intune / Autopilot':['rgba(80,150,200,0.2)','#70b8e8'],'SharePoint / Teams / OneDrive':['rgba(60,140,220,0.2)','#60b0ee'],'Microsoft Defender':['rgba(200,60,60,0.2)','#e07a7a'],'PowerShell / Automation':['rgba(180,140,40,0.2)','#d4b85a'],'Security Administration':['rgba(220,100,40,0.2)','#e89060'],'Vendor Management':['rgba(160,80,160,0.2)','#d08ad0'],'Project Meetings':['rgba(201,146,58,0.2)','#c9923a'],'Assessment / Audit':['rgba(100,180,80,0.2)','#80cc70'],'Documentation':['rgba(130,130,180,0.2)','#a0a8d8'],'Other':['rgba(80,80,100,0.2)','#9090b0']};
+const todayStr=()=>new Date().toISOString().slice(0,10);
+const fh=h=>h.toFixed(2)+'h';
+const fc=(h,b)=>b==='yes'?'$'+(h*RATE).toLocaleString('en-US',{minimumFractionDigits:2}):'—';
+const fd=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+const fdl=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+const mk=d=>d.slice(0,7);
+const ml=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});};
+const fm$=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2});
+function calcH(s,e,m){const v=parseFloat(m);if(v>0)return Math.round(v*4)/4;if(s&&e){const[sh,sm]=s.split(':').map(Number);const[eh,em]=e.split(':').map(Number);const d=(eh*60+em)-(sh*60+sm);if(d>0)return Math.round(d/15)*0.25;}return null;}
+function weekOf(d){const dt=new Date(d+'T12:00:00');const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);const mon=new Date(dt);mon.setDate(diff);return mon.toISOString().slice(0,10);}
+async function ghRead(token){const res=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}?ref=${GH_BRANCH}`,{headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});if(res.status===404)return{entries:[],invoices:[],sha:null};if(!res.ok)throw new Error(`GitHub read failed: ${res.status}`);const data=await res.json();const content=JSON.parse(atob(data.content.replace(/\n/g,'')));return{entries:content.entries||[],invoices:content.invoices||[],sha:data.sha};}
+async function ghWrite(token,entries,invoices,sha){const url=`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;const content=btoa(unescape(encodeURIComponent(JSON.stringify({entries,invoices},null,2))));const body={message:`Update time log — ${new Date().toISOString().slice(0,10)}`,content,branch:GH_BRANCH};if(sha)body.sha=sha;const res=await fetch(url,{method:'PUT',headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});if(!res.ok){const err=await res.json();throw new Error(err.message||`Write failed: ${res.status}`);}return(await res.json()).content.sha;}
+async function validateToken(token){const res=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`,{headers:{Authorization:`token ${token}`}});return res.ok;}
+const inp={width:'100%',background:'#1e2333',border:'1px solid #2a3050',borderRadius:7,color:'#e8eaf0',fontSize:13,padding:'8px 10px',outline:'none',fontFamily:'inherit'};
+const lbl={fontSize:10,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:5,display:'block'};
+function FInput(p){const[f,sF]=useState(false);return<input {...p} style={{...inp,...(f?{borderColor:'#c9923a'}:{}),...(p.style||{})}} onFocus={()=>sF(true)} onBlur={()=>sF(false)}/>;}
+function FSelect({children,...p}){const[f,sF]=useState(false);return<select {...p} style={{...inp,...(f?{borderColor:'#c9923a'}:{})}} onFocus={()=>sF(true)} onBlur={()=>sF(false)}>{children}</select>;}
+function FTA(p){const[f,sF]=useState(false);return<textarea {...p} style={{...inp,minHeight:p.minh||60,resize:'vertical',...(f?{borderColor:'#c9923a'}:{})}} onFocus={()=>sF(true)} onBlur={()=>sF(false)}/>;}
+function Btn({children,variant='primary',onClick,style={},disabled=false,loading=false,small=false}){const[h,sH]=useState(false);const base={padding:small?'5px 12px':'10px 22px',border:'none',borderRadius:8,fontSize:small?11:13,fontWeight:700,cursor:disabled||loading?'not-allowed':'pointer',transition:'all 0.15s',display:'inline-flex',alignItems:'center',gap:6,fontFamily:'inherit'};const v={primary:{background:h&&!disabled?'#e8b56a':'#c9923a',color:'#0f1117',opacity:disabled||loading?0.6:1},ghost:{background:h?'rgba(201,146,58,0.2)':'rgba(201,146,58,0.12)',color:'#c9923a',border:'1px solid rgba(201,146,58,0.3)',padding:small?'4px 10px':'7px 14px',fontSize:small?10:12},danger:{background:'transparent',color:'#e05c5c',border:`1px solid ${h?'#e05c5c':'#2a3050'}`,padding:'5px 10px',fontSize:11},green:{background:h?'#4ca868':'#5cb87a',color:'#0f1117',opacity:disabled?0.6:1},blue:{background:h?'#3a7fc4':'#4a8fd4',color:'#fff',opacity:disabled?0.6:1}};return<button onClick={disabled||loading?undefined:onClick} style={{...base,...v[variant],...style}} onMouseEnter={()=>sH(true)} onMouseLeave={()=>sH(false)}>{loading&&<span className="spin" style={{fontSize:12}}>⟳</span>}{children}</button>;}
+function Badge({cat}){const[bg,col]=CAT_COLOR[cat]||CAT_COLOR['Other'];return<span style={{display:'inline-block',padding:'3px 8px',borderRadius:4,fontSize:9,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',background:bg,color:col,whiteSpace:'nowrap'}}>{cat}</span>;}
+function SBadge({status}){const map={draft:['rgba(120,120,140,0.2)','#9090b0','Draft'],sent:['rgba(74,143,212,0.2)','#4a8fd4','Sent'],paid:['rgba(92,184,122,0.2)','#5cb87a','Paid'],overdue:['rgba(224,92,92,0.2)','#e05c5c','Overdue']};const[bg,col,label]=map[status]||map.draft;return<span style={{display:'inline-block',padding:'3px 8px',borderRadius:4,fontSize:9,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',background:bg,color:col}}>{label}</span>;}
+function SC({label,value,sub,accent,children}){return<div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:10,padding:'12px 14px'}}><div style={{fontSize:9,color:'#7a82a0',textTransform:'uppercase',letterSpacing:'1px',marginBottom:5}}>{label}</div><div style={{fontSize:20,fontWeight:700,fontFamily:"'DM Mono',monospace",color:accent||'#e8eaf0'}}>{value}</div>{sub&&<div style={{fontSize:10,color:'#7a82a0',marginTop:2}}>{sub}</div>}{children}</div>;}
+const TH=({cols})=><thead><tr>{cols.map(h=><th key={h} style={{fontSize:9,color:'#4a5270',textTransform:'uppercase',padding:'9px 16px',textAlign:'left',borderBottom:'1px solid #2a3050',fontFamily:'inherit',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>;
 
-// ── GitHub Config ─────────────────────────────────────────────────────────────
-const GH_OWNER  = 'maruanbarakat-boop';
-const GH_REPO   = 'rpa';
-const GH_BRANCH = 'main';
-const GH_FILE   = 'tracker_data.json';
-const TOKEN_KEY = 'rpa_gh_token';
-const RATE = 150;
-const MAX_H = 200;
-const RETAINER = 6000;
+function TokenModal({onSave}){const[tok,sT]=useState('');const[err,sE]=useState('');const[loading,sL]=useState(false);async function submit(){if(!tok.trim()){sE('Paste your GitHub token.');return;}sL(true);sE('');try{const ok=await validateToken(tok.trim());if(!ok){sE('Invalid token or no repo access. Check scopes (repo).');sL(false);return;}onSave(tok.trim());}catch(e){sE('Connection error.');sL(false);}}return<div className="modal-overlay"><div className="modal"><div style={{fontSize:16,fontWeight:700,marginBottom:6}}>🔐 GitHub Sync Setup</div><div style={{fontSize:12,color:'#7a82a0',marginBottom:20,lineHeight:1.6}}>Data saved to <strong style={{color:'#e8eaf0'}}>maruanbarakat-boop/rpa</strong>.<br/>Token stays in this browser only.</div><label style={lbl}>Personal Access Token</label><FInput type="password" placeholder="ghp_..." value={tok} onChange={e=>sT(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} style={{marginBottom:12,fontFamily:"'DM Mono',monospace"}}/>{err&&<div style={{fontSize:12,color:'#e05c5c',marginBottom:10,padding:'7px 10px',background:'rgba(224,92,92,0.1)',borderRadius:6}}>{err}</div>}<div style={{display:'flex',justifyContent:'flex-end'}}><Btn onClick={submit} loading={loading}>Connect to GitHub →</Btn></div></div></div>;}
 
-const CATS = [
-  'Kickoff / Onboarding','Exchange Online','Azure AD / Entra ID',
-  'Intune / Autopilot','SharePoint / Teams / OneDrive','Microsoft Defender',
-  'PowerShell / Automation','Security Administration','Vendor Management',
-  'Project Meetings','Assessment / Audit','Documentation','Other',
-];
-const CAT_COLOR = {
-  'Kickoff / Onboarding':          ['rgba(74,111,165,0.2)','#7aa3d4'],
-  'Exchange Online':                ['rgba(70,180,150,0.2)','#5cc9a7'],
-  'Azure AD / Entra ID':            ['rgba(140,100,200,0.2)','#b08ae0'],
-  'Intune / Autopilot':             ['rgba(80,150,200,0.2)','#70b8e8'],
-  'SharePoint / Teams / OneDrive':  ['rgba(60,140,220,0.2)','#60b0ee'],
-  'Microsoft Defender':             ['rgba(200,60,60,0.2)','#e07a7a'],
-  'PowerShell / Automation':        ['rgba(180,140,40,0.2)','#d4b85a'],
-  'Security Administration':        ['rgba(220,100,40,0.2)','#e89060'],
-  'Vendor Management':              ['rgba(160,80,160,0.2)','#d08ad0'],
-  'Project Meetings':               ['rgba(201,146,58,0.2)','#c9923a'],
-  'Assessment / Audit':             ['rgba(100,180,80,0.2)','#80cc70'],
-  'Documentation':                  ['rgba(130,130,180,0.2)','#a0a8d8'],
-  'Other':                          ['rgba(80,80,100,0.2)','#9090b0'],
-};
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const todayStr = () => new Date().toISOString().slice(0,10);
-const fh = h => h.toFixed(2)+'h';
-const fa = (h,b) => b==='yes' ? '$'+(h*RATE).toLocaleString('en-US',{minimumFractionDigits:2}) : '—';
-const fd = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-const mk = d => d.slice(0,7);
-const ml = k => { const[y,m]=k.split('-'); return new Date(+y,+m-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); };
-function calcH(s,e,m){ const v=parseFloat(m); if(v>0) return Math.round(v*4)/4; if(s&&e){const[sh,sm]=s.split(':').map(Number);const[eh,em]=e.split(':').map(Number);const d=(eh*60+em)-(sh*60+sm);if(d>0)return Math.round(d/15)*0.25;} return null; }
-
-// ── GitHub API ────────────────────────────────────────────────────────────────
-async function ghRead(token) {
-  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}?ref=${GH_BRANCH}`;
-  const res = await fetch(url, { headers:{ Authorization:`token ${token}`, Accept:'application/vnd.github.v3+json' }});
-  if (res.status === 404) return { entries:[], sha:null };
-  if (!res.ok) throw new Error(`GitHub read failed: ${res.status}`);
-  const data = await res.json();
-  const content = JSON.parse(atob(data.content.replace(/\n/g,'')));
-  return { entries: content.entries || [], sha: data.sha };
-}
-
-async function ghWrite(token, entries, sha) {
-  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
-  const content = btoa(unescape(encodeURIComponent(JSON.stringify({ entries }, null, 2))));
-  const body = { message:`Update time log — ${new Date().toISOString().slice(0,10)}`, content, branch:GH_BRANCH };
-  if (sha) body.sha = sha;
-  const res = await fetch(url, { method:'PUT', headers:{ Authorization:`token ${token}`, Accept:'application/vnd.github.v3+json', 'Content-Type':'application/json' }, body:JSON.stringify(body) });
-  if (!res.ok) { const err = await res.json(); throw new Error(err.message || `GitHub write failed: ${res.status}`); }
-  const data = await res.json();
-  return data.content.sha;
-}
-
-async function validateToken(token) {
-  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`, { headers:{ Authorization:`token ${token}` }});
-  return res.ok;
-}
-
-// ── Style primitives ──────────────────────────────────────────────────────────
-const inp = { width:'100%',background:'#1e2333',border:'1px solid #2a3050',borderRadius:7,color:'#e8eaf0',fontSize:13,padding:'8px 10px',outline:'none',fontFamily:'inherit' };
-const lbl = { fontSize:10,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:5,display:'block' };
-
-function FInput(props) {
-  const [f,setF]=useState(false);
-  return <input {...props} style={{...inp,...(f?{borderColor:'#c9923a'}:{}),...(props.style||{})}} onFocus={()=>setF(true)} onBlur={()=>setF(false)}/>;
-}
-function FSelect({children,...props}) {
-  const [f,setF]=useState(false);
-  return <select {...props} style={{...inp,...(f?{borderColor:'#c9923a'}:{})}} onFocus={()=>setF(true)} onBlur={()=>setF(false)}>{children}</select>;
-}
-function FTextarea(props) {
-  const [f,setF]=useState(false);
-  return <textarea {...props} style={{...inp,minHeight:60,resize:'vertical',...(f?{borderColor:'#c9923a'}:{})}} onFocus={()=>setF(true)} onBlur={()=>setF(false)}/>;
-}
-
-function Btn({children,variant='primary',onClick,style={},disabled=false,loading=false}){
-  const [h,setH]=useState(false);
-  const base={padding:'10px 22px',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:disabled||loading?'not-allowed':'pointer',transition:'all 0.15s',display:'inline-flex',alignItems:'center',gap:6,fontFamily:'inherit'};
-  const v={
-    primary:{background:h&&!disabled&&!loading?'#e8b56a':'#c9923a',color:'#0f1117',opacity:disabled||loading?0.6:1},
-    ghost:{background:h?'rgba(201,146,58,0.2)':'rgba(201,146,58,0.12)',color:'#c9923a',border:'1px solid rgba(201,146,58,0.3)',padding:'7px 14px',fontSize:12},
-    danger:{background:'transparent',color:'#e05c5c',border:`1px solid ${h?'#e05c5c':'#2a3050'}`,padding:'5px 10px',fontSize:11},
-    red:{background:h?'#c94a4a':'#e05c5c',color:'#fff',opacity:disabled?0.6:1},
-  };
-  return <button onClick={disabled||loading?undefined:onClick} style={{...base,...v[variant],...style}}
-    onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}>
-    {loading && <span className="spin" style={{fontSize:12}}>⟳</span>}
-    {children}
-  </button>;
-}
-
-function Badge({cat}){
-  const [bg,col]=CAT_COLOR[cat]||CAT_COLOR['Other'];
-  return <span style={{display:'inline-block',padding:'3px 8px',borderRadius:4,fontSize:9,fontWeight:700,letterSpacing:0.5,textTransform:'uppercase',background:bg,color:col,whiteSpace:'nowrap'}}>{cat}</span>;
-}
-
-function StatCard({label,value,sub,accent,children}){
-  return <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:10,padding:'12px 14px'}}>
-    <div style={{fontSize:9,color:'#7a82a0',textTransform:'uppercase',letterSpacing:'1px',marginBottom:5}}>{label}</div>
-    <div style={{fontSize:20,fontWeight:700,fontFamily:"'DM Mono',monospace",color:accent||'#e8eaf0'}}>{value}</div>
-    {sub&&<div style={{fontSize:10,color:'#7a82a0',marginTop:2}}>{sub}</div>}
-    {children}
-  </div>;
-}
-
-const TH=()=><thead><tr>{['Date','Category','Description','Hours','Amount',''].map(h=><th key={h} style={{fontSize:9,color:'#4a5270',textTransform:'uppercase',padding:'9px 16px',textAlign:'left',borderBottom:'1px solid #2a3050',fontFamily:'inherit'}}>{h}</th>)}</tr></thead>;
-
-function EntryRow({e,onDelete}){
-  return <tr style={{borderBottom:'1px solid rgba(42,48,80,0.4)'}}>
-    <td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:11,color:'#7a82a0',whiteSpace:'nowrap'}}>
-      {fd(e.date)}{e.start&&<><br/><span style={{fontSize:10,color:'#4a5270'}}>{e.start}{e.end&&'–'+e.end}</span></>}
-    </td>
-    <td style={{padding:'11px 16px'}}><Badge cat={e.cat}/></td>
-    <td style={{padding:'11px 16px',fontSize:12,color:'#7a82a0',maxWidth:260}}>{e.desc}</td>
-    <td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontWeight:500,color:'#c9923a'}}>{fh(e.hours)}</td>
-    <td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:11,color:'#7a82a0'}}>{fa(e.hours,e.bill)}</td>
-    <td style={{padding:'11px 16px'}}><Btn variant="danger" onClick={()=>onDelete(e.id)}>✕</Btn></td>
-  </tr>;
-}
-
-// ── Token Setup Modal ─────────────────────────────────────────────────────────
-function TokenModal({onSave}){
-  const [tok,setTok]=useState('');
-  const [err,setErr]=useState('');
-  const [loading,setLoading]=useState(false);
-  async function submit(){
-    if(!tok.trim()){setErr('Please paste your GitHub token.');return;}
-    setLoading(true); setErr('');
-    try{
-      const ok = await validateToken(tok.trim());
-      if(!ok){setErr('Token invalid or no access to this repository. Check scopes (repo) and try again.');setLoading(false);return;}
-      onSave(tok.trim());
-    }catch(e){setErr('Connection error. Check your internet and try again.');setLoading(false);}
-  }
-  return <div className="modal-overlay">
-    <div className="modal">
-      <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>🔐 GitHub Sync Setup</div>
-      <div style={{fontSize:12,color:'#7a82a0',marginBottom:20,lineHeight:1.6}}>
-        Your time entries will be saved to <strong style={{color:'#e8eaf0'}}>maruanbarakat-boop/rpa</strong> on GitHub — synced across all your devices.<br/><br/>
-        Paste your Personal Access Token below. It stays in <em>this browser only</em> — never uploaded anywhere.
-      </div>
-      <label style={lbl}>GitHub Personal Access Token</label>
-      <FInput type="password" placeholder="ghp_..." value={tok} onChange={e=>setTok(e.target.value)}
-        onKeyDown={e=>e.key==='Enter'&&submit()} style={{marginBottom:12,fontFamily:"'DM Mono',monospace",letterSpacing:1}}/>
-      {err&&<div style={{fontSize:12,color:'#e05c5c',marginBottom:12,padding:'7px 10px',background:'rgba(224,92,92,0.1)',borderRadius:6,border:'1px solid rgba(224,92,92,0.2)'}}>{err}</div>}
-      <div style={{fontSize:11,color:'#4a5270',marginBottom:16,padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6,border:'1px solid #2a3050'}}>
-        Don't have a token? Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token → scope: <strong style={{color:'#7a82a0'}}>repo</strong>
-      </div>
-      <div style={{display:'flex',justifyContent:'flex-end'}}>
-        <Btn variant="primary" onClick={submit} loading={loading}>Connect to GitHub →</Btn>
-      </div>
-    </div>
-  </div>;
-}
-
-// ── Add Entry Modal ───────────────────────────────────────────────────────────
-function AddModal({onClose,onSave}){
-  const[fDate,setFDate]=useState(todayStr());
-  const[fStart,setFStart]=useState('');
-  const[fEnd,setFEnd]=useState('');
-  const[fHours,setFHours]=useState('');
-  const[fCat,setFCat]=useState('');
-  const[fDesc,setFDesc]=useState('');
-  const[fBill,setFBill]=useState('yes');
-  const[error,setError]=useState('');
+function AddModal({onClose,onSave,editEntry=null}){
+  const[fDate,sDate]=useState(editEntry?.date||todayStr());
+  const[fStart,sStart]=useState(editEntry?.start||'');
+  const[fEnd,sEnd]=useState(editEntry?.end||'');
+  const[fHours,sHours]=useState(editEntry?String(editEntry.hours):'');
+  const[fCat,sCat]=useState(editEntry?.cat||'');
+  const[fDesc,sDesc]=useState(editEntry?.desc||'');
+  const[fNote,sNote]=useState(editEntry?.note||'');
+  const[fBill,sBill]=useState(editEntry?.bill||'yes');
+  const[error,sErr]=useState('');
   const preview=calcH(fStart,fEnd,fHours);
-  function submit(){
-    setError('');
-    const h=calcH(fStart,fEnd,fHours);
-    if(!h){setError('Enter hours via start/end times or the manual field.');return;}
-    if(!fCat){setError('Select a category.');return;}
-    if(!fDesc.trim()){setError('Enter a task description.');return;}
-    onSave({id:Date.now().toString(),date:fDate||todayStr(),start:fStart,end:fEnd,hours:h,cat:fCat,desc:fDesc.trim(),bill:fBill});
-    onClose();
-  }
-  return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-    <div className="modal">
-      <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>+ New Time Entry</div>
-      <div style={{fontSize:12,color:'#7a82a0',marginBottom:20}}>RPA · Rockefeller Philanthropy Advisors · $150/hr</div>
-      <div style={{display:'grid',gridTemplateColumns:'1.4fr 1fr 1fr 1fr',gap:10,marginBottom:12}}>
-        <div><label style={lbl}>Date</label><FInput type="date" value={fDate} onChange={e=>setFDate(e.target.value)}/></div>
-        <div><label style={lbl}>Start</label><FInput type="time" value={fStart} onChange={e=>setFStart(e.target.value)}/></div>
-        <div><label style={lbl}>End</label><FInput type="time" value={fEnd} onChange={e=>setFEnd(e.target.value)}/></div>
-        <div><label style={lbl}>Hours</label><FInput type="number" placeholder="1.5" step="0.25" min="0.25" value={fHours} onChange={e=>setFHours(e.target.value)}/></div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:12}}>
-        <div><label style={lbl}>Category</label>
-          <FSelect value={fCat} onChange={e=>setFCat(e.target.value)}>
-            <option value="">Select...</option>
-            {CATS.map(c=><option key={c} value={c}>{c}</option>)}
-          </FSelect>
-        </div>
-        <div><label style={lbl}>Billable?</label>
-          <FSelect value={fBill} onChange={e=>setFBill(e.target.value)}>
-            <option value="yes">Yes — $150/hr</option>
-            <option value="no">No</option>
-          </FSelect>
-        </div>
-      </div>
-      <div style={{marginBottom:12}}>
-        <label style={lbl}>Task Description</label>
-        <FTextarea placeholder="Brief description (appears on invoice)..." value={fDesc} onChange={e=>setFDesc(e.target.value)}/>
-      </div>
-      {error&&<div style={{fontSize:12,color:'#e05c5c',marginBottom:10,padding:'7px 10px',background:'rgba(224,92,92,0.1)',borderRadius:6,border:'1px solid rgba(224,92,92,0.2)'}}>{error}</div>}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <span style={{fontSize:12,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>
-          {preview?`${fh(preview)} · $${(preview*RATE).toFixed(2)}`:''}
-        </span>
-        <div style={{display:'flex',gap:10}}>
-          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-          <Btn variant="primary" onClick={submit}>Save Entry →</Btn>
-        </div>
-      </div>
+  function submit(){sErr('');const h=calcH(fStart,fEnd,fHours);if(!h){sErr('Enter hours via start/end or manual field.');return;}if(!fCat){sErr('Select a category.');return;}if(!fDesc.trim()){sErr('Enter a task description.');return;}onSave({id:editEntry?.id||Date.now().toString(),date:fDate||todayStr(),start:fStart,end:fEnd,hours:h,cat:fCat,desc:fDesc.trim(),note:fNote.trim(),bill:fBill});onClose();}
+  return<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className="modal">
+    <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>{editEntry?'Edit Entry':'+ New Time Entry'}</div>
+    <div style={{fontSize:12,color:'#7a82a0',marginBottom:20}}>RPA · Rockefeller Philanthropy Advisors · $150/hr</div>
+    <div style={{display:'grid',gridTemplateColumns:'1.4fr 1fr 1fr 1fr',gap:10,marginBottom:12}}>
+      <div><label style={lbl}>Date</label><FInput type="date" value={fDate} onChange={e=>sDate(e.target.value)}/></div>
+      <div><label style={lbl}>Start</label><FInput type="time" value={fStart} onChange={e=>sStart(e.target.value)}/></div>
+      <div><label style={lbl}>End</label><FInput type="time" value={fEnd} onChange={e=>sEnd(e.target.value)}/></div>
+      <div><label style={lbl}>Hours</label><FInput type="number" placeholder="1.5" step="0.25" min="0.25" value={fHours} onChange={e=>sHours(e.target.value)}/></div>
     </div>
-  </div>;
+    <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:12}}>
+      <div><label style={lbl}>Category</label><FSelect value={fCat} onChange={e=>sCat(e.target.value)}><option value="">Select...</option>{CATS.map(c=><option key={c} value={c}>{c}</option>)}</FSelect></div>
+      <div><label style={lbl}>Billable?</label><FSelect value={fBill} onChange={e=>sBill(e.target.value)}><option value="yes">Yes — $150/hr</option><option value="no">No</option></FSelect></div>
+    </div>
+    <div style={{marginBottom:12}}><label style={lbl}>Task Description <span style={{color:'#4a5270'}}>(on invoice)</span></label><FTA placeholder="Brief description of work performed..." value={fDesc} onChange={e=>sDesc(e.target.value)}/></div>
+    <div style={{marginBottom:12}}><label style={lbl}>Internal Notes <span style={{color:'#4a5270'}}>(not on invoice)</span></label><FTA minh={45} placeholder="Optional internal notes, context, follow-ups..." value={fNote} onChange={e=>sNote(e.target.value)}/></div>
+    {error&&<div style={{fontSize:12,color:'#e05c5c',marginBottom:10,padding:'7px 10px',background:'rgba(224,92,92,0.1)',borderRadius:6}}>{error}</div>}
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <span style={{fontSize:12,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>{preview?`${fh(preview)} · $${(preview*RATE).toFixed(2)}`:''}</span>
+      <div style={{display:'flex',gap:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={submit}>{editEntry?'Save Changes →':'Save Entry →'}</Btn></div>
+    </div>
+  </div></div>;
 }
 
-// ── Main App ──────────────────────────────────────────────────────────────────
+function InvoiceModal({entries,invoices,onClose,onSave}){
+  const months=[...new Set(entries.map(e=>mk(e.date)))].sort().reverse();
+  const[selMonth,sSM]=useState(months[0]||'');
+  const[invNum,sIN]=useState('INV-RPA-00'+(invoices.length+2));
+  const[invDate,sID]=useState(todayStr());
+  const[dueDate,sDD]=useState(()=>{const d=new Date();d.setDate(d.getDate()+30);return d.toISOString().slice(0,10);});
+  const[notes,sN]=useState('Payment via ACH. Please send remittance confirmation to maruan.barakat@gmail.com.');
+  const[preview,sP]=useState(false);
+  const me=useMemo(()=>entries.filter(e=>e.date.startsWith(selMonth)&&e.bill==='yes'),[entries,selMonth]);
+  const totalH=me.reduce((s,e)=>s+e.hours,0);
+  const gross=totalH*RATE;
+  const allPrevGross=entries.filter(e=>e.bill==='yes'&&mk(e.date)<selMonth).reduce((s,e)=>s+e.hours*RATE,0);
+  const retRem=Math.max(0,RETAINER-allPrevGross);
+  const credit=Math.min(retRem,gross);
+  const net=gross-credit;
+  const catMap={};me.forEach(e=>{if(!catMap[e.cat])catMap[e.cat]={hours:0,entries:[]};catMap[e.cat].hours+=e.hours;catMap[e.cat].entries.push(e);});
+  function saveInvoice(){onSave({id:Date.now().toString(),number:invNum,date:invDate,due:dueDate,period:selMonth,gross,credit,net,status:'draft',notes,sentAt:null,paidAt:null,paidAmount:0});onClose();}
+  const Preview=()=><div style={{background:'#fff',color:'#111',borderRadius:10,padding:32,fontSize:12,lineHeight:1.6}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:28,paddingBottom:20,borderBottom:'2px solid #e8e8e8'}}>
+      <div><div style={{fontSize:20,fontWeight:700,marginBottom:4}}>INVOICE</div><div style={{fontWeight:600}}>Maruan Barakat Consulting</div><div style={{color:'#555'}}>10551 Petrillo Way, Winter Garden, FL 34787<br/>maruan.barakat@gmail.com · (617) 820-9557</div></div>
+      <div style={{textAlign:'right'}}><div style={{fontSize:22,fontWeight:700,color:'#c9923a',marginBottom:8}}>{invNum}</div><div style={{color:'#555',fontSize:11}}><div>Invoice Date: <strong style={{color:'#111'}}>{fdl(invDate)}</strong></div><div>Due Date: <strong style={{color:'#111'}}>{fdl(dueDate)}</strong></div><div>Period: <strong style={{color:'#111'}}>{ml(selMonth)}</strong></div></div></div>
+    </div>
+    <div style={{marginBottom:24}}><div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:1,color:'#888',marginBottom:6}}>Bill To</div><div style={{fontWeight:600}}>Rockefeller Philanthropy Advisors, Inc.</div><div style={{color:'#555'}}>c/o Ernest Ostro, VP Technology<br/>120 Broadway, Suite 3475, New York, NY 10271<br/>eostro@rockpa.org</div></div>
+    <table style={{width:'100%',borderCollapse:'collapse',marginBottom:20}}><thead><tr style={{background:'#f5f5f5'}}>{['Category','Hours','Rate','Amount'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:10,textTransform:'uppercase',letterSpacing:0.5,fontWeight:700,color:'#555'}}>{h}</th>)}</tr></thead><tbody>{Object.entries(catMap).map(([cat,d])=><tr key={cat} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'9px 12px'}}>{cat}</td><td style={{padding:'9px 12px',fontFamily:'monospace'}}>{fh(d.hours)}</td><td style={{padding:'9px 12px',fontFamily:'monospace'}}>$150.00/hr</td><td style={{padding:'9px 12px',fontFamily:'monospace'}}>{fm$(d.hours*RATE)}</td></tr>)}</tbody></table>
+    <div style={{display:'flex',justifyContent:'flex-end',marginBottom:20}}><div style={{minWidth:260}}>
+      <div style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #eee'}}><span style={{color:'#555'}}>Subtotal</span><span style={{fontFamily:'monospace',fontWeight:600}}>{fm$(gross)}</span></div>
+      {credit>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #eee',color:'#2a8a50'}}><span>Retainer Credit (INV-RPA-001)</span><span style={{fontFamily:'monospace'}}>–{fm$(credit)}</span></div>}
+      <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0',fontWeight:700,fontSize:15}}><span>Total Due</span><span style={{fontFamily:'monospace',color:'#c9923a'}}>{fm$(net)}</span></div>
+    </div></div>
+    <div style={{marginBottom:20}}><div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:1,color:'#888',marginBottom:8}}>Work Log Detail</div>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}><thead><tr style={{background:'#f9f9f9'}}>{['Date','Category','Description','Hours'].map(h=><th key={h} style={{padding:'6px 10px',textAlign:'left',color:'#888',fontWeight:600}}>{h}</th>)}</tr></thead><tbody>{me.sort((a,b)=>a.date.localeCompare(b.date)).map(e=><tr key={e.id} style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'6px 10px',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fd(e.date)}</td><td style={{padding:'6px 10px'}}>{e.cat}</td><td style={{padding:'6px 10px',color:'#444'}}>{e.desc}</td><td style={{padding:'6px 10px',fontFamily:'monospace'}}>{fh(e.hours)}</td></tr>)}</tbody></table>
+    </div>
+    {notes&&<div style={{borderTop:'1px solid #eee',paddingTop:16,color:'#555',fontSize:11}}><strong>Notes:</strong> {notes}</div>}
+  </div>;
+  return<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className="modal modal-lg">
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
+      <div><div style={{fontSize:16,fontWeight:700,marginBottom:4}}>📄 Invoice Generator</div><div style={{fontSize:12,color:'#7a82a0'}}>Generate a ready-to-send invoice from logged hours</div></div>
+    </div>
+    {!preview?<>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+        <div><label style={lbl}>Billing Period</label><FSelect value={selMonth} onChange={e=>sSM(e.target.value)}>{months.map(m=><option key={m} value={m}>{ml(m)}</option>)}</FSelect></div>
+        <div><label style={lbl}>Invoice Number</label><FInput value={invNum} onChange={e=>sIN(e.target.value)}/></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+        <div><label style={lbl}>Invoice Date</label><FInput type="date" value={invDate} onChange={e=>sID(e.target.value)}/></div>
+        <div><label style={lbl}>Due Date (Net 30)</label><FInput type="date" value={dueDate} onChange={e=>sDD(e.target.value)}/></div>
+      </div>
+      <div style={{marginBottom:16}}><label style={lbl}>Notes</label><FTA value={notes} onChange={e=>sN(e.target.value)}/></div>
+      <div style={{background:'#1e2333',borderRadius:10,padding:16,marginBottom:20,display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+        <div><div style={{fontSize:10,color:'#7a82a0',marginBottom:4}}>HOURS</div><div style={{fontFamily:"'DM Mono',monospace",fontSize:18,fontWeight:700}}>{fh(totalH)}</div></div>
+        <div><div style={{fontSize:10,color:'#7a82a0',marginBottom:4}}>GROSS</div><div style={{fontFamily:"'DM Mono',monospace",fontSize:18,fontWeight:700}}>{fm$(gross)}</div></div>
+        <div><div style={{fontSize:10,color:'#7a82a0',marginBottom:4}}>NET DUE</div><div style={{fontFamily:"'DM Mono',monospace",fontSize:18,fontWeight:700,color:'#c9923a'}}>{fm$(net)}</div>{credit>0&&<div style={{fontSize:10,color:'#5cb87a'}}>–{fm$(credit)} retainer credit</div>}</div>
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between'}}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <div style={{display:'flex',gap:10}}><Btn variant="ghost" small onClick={()=>sP(true)}>Preview →</Btn><Btn onClick={saveInvoice} disabled={!selMonth||totalH===0}>Save Draft →</Btn></div>
+      </div>
+    </>:<>
+      <div style={{marginBottom:16,overflowY:'auto',maxHeight:'60vh'}}><Preview/></div>
+      <div style={{display:'flex',justifyContent:'space-between'}}>
+        <Btn variant="ghost" onClick={()=>sP(false)}>← Edit</Btn>
+        <div style={{display:'flex',gap:10}}><Btn variant="blue" onClick={()=>window.print()}>🖨 Print / PDF</Btn><Btn onClick={saveInvoice} disabled={!selMonth||totalH===0}>Save Draft →</Btn></div>
+      </div>
+    </>}
+  </div></div>;
+}
+
 function App(){
-  const [token,   setToken]   = useState(()=>localStorage.getItem(TOKEN_KEY)||'');
-  const [entries, setEntries] = useState([]);
-  const [sha,     setSha]     = useState(null);
-  const [tab,     setTab]     = useState('log');
-  const [showAdd, setShowAdd] = useState(false);
-  const [syncSt,  setSyncSt]  = useState('idle'); // idle | loading | saving | saved | error
-  const [syncMsg, setSyncMsg] = useState('');
-  const [filMonth,setFilMonth]= useState('all');
-  const [filCat,  setFilCat]  = useState('all');
-  const saveTimer = useRef(null);
+  const[token,sToken]=useState(()=>localStorage.getItem(TOKEN_KEY)||'');
+  const[entries,sEntries]=useState([]);
+  const[invoices,sInvoices]=useState([]);
+  const[sha,sSha]=useState(null);
+  const[tab,sTab]=useState('log');
+  const[showAdd,sShowAdd]=useState(false);
+  const[editEnt,sEditEnt]=useState(null);
+  const[showInv,sShowInv]=useState(false);
+  const[syncSt,sSyncSt]=useState('idle');
+  const[syncMsg,sSyncMsg]=useState('');
+  const[filMonth,sFilMonth]=useState('all');
+  const[filCat,sFilCat]=useState('all');
+  const[expandNote,sExpandNote]=useState(null);
+  const saveTimer=useRef(null);
 
-  // Load from GitHub on mount / token change
-  useEffect(()=>{
-    if(!token) return;
-    setSyncSt('loading');
-    ghRead(token)
-      .then(({entries:e,sha:s})=>{ setEntries(e); setSha(s); setSyncSt('idle'); })
-      .catch(err=>{ setSyncSt('error'); setSyncMsg('Failed to load data: '+err.message); });
-  },[token]);
+  useEffect(()=>{if(!token)return;sSyncSt('loading');ghRead(token).then(({entries:e,invoices:i,sha:s})=>{sEntries(e);sInvoices(i||[]);sSha(s);sSyncSt('idle');}).catch(err=>{sSyncSt('error');sSyncMsg('Load failed: '+err.message);});},[token]);
 
-  // Debounced save to GitHub
-  function scheduleSave(newEntries, currentSha){
-    if(saveTimer.current) clearTimeout(saveTimer.current);
-    setSyncSt('saving');
-    saveTimer.current = setTimeout(async()=>{
-      try{
-        const newSha = await ghWrite(token, newEntries, currentSha);
-        setSha(newSha);
-        setSyncSt('saved');
-        setTimeout(()=>setSyncSt('idle'),2500);
-      }catch(err){
-        setSyncSt('error');
-        setSyncMsg('Save failed: '+err.message);
-      }
-    }, 1200);
-  }
+  function scheduleSave(e,i,s){if(saveTimer.current)clearTimeout(saveTimer.current);sSyncSt('saving');saveTimer.current=setTimeout(async()=>{try{const ns=await ghWrite(token,e,i,s);sSha(ns);sSyncSt('saved');setTimeout(()=>sSyncSt('idle'),2500);}catch(err){sSyncSt('error');sSyncMsg('Save failed: '+err.message);}},1200);}
 
-  function addEntry(e){
-    setEntries(prev=>{ const next=[e,...prev]; scheduleSave(next,sha); return next; });
-  }
-  function delEntry(id){
-    if(!window.confirm('Remove this entry?')) return;
-    setEntries(prev=>{ const next=prev.filter(e=>e.id!==id); scheduleSave(next,sha); return next; });
-  }
-  function handleToken(t){ localStorage.setItem(TOKEN_KEY,t); setToken(t); }
-  function resetToken(){ if(!window.confirm('Disconnect GitHub? Your data stays in the repo.')) return; localStorage.removeItem(TOKEN_KEY); setToken(''); setEntries([]); setSha(null); }
+  function addEntry(e){sEntries(prev=>{const n=[e,...prev.filter(x=>x.id!==e.id)];scheduleSave(n,invoices,sha);return n;});}
+  function delEntry(id){if(!window.confirm('Remove this entry?'))return;sEntries(prev=>{const n=prev.filter(e=>e.id!==id);scheduleSave(n,invoices,sha);return n;});}
+  function addInvoice(inv){sInvoices(prev=>{const n=[...prev,inv];scheduleSave(entries,n,sha);return n;});}
+  function updateInvoice(id,patch){sInvoices(prev=>{const n=prev.map(i=>i.id===id?{...i,...patch}:i);scheduleSave(entries,n,sha);return n;});}
+  function delInvoice(id){if(!window.confirm('Delete this invoice?'))return;sInvoices(prev=>{const n=prev.filter(i=>i.id!==id);scheduleSave(entries,n,sha);return n;});}
+  function handleToken(t){localStorage.setItem(TOKEN_KEY,t);sToken(t);}
+  function resetToken(){if(!window.confirm('Disconnect GitHub?'))return;localStorage.removeItem(TOKEN_KEY);sToken('');sEntries([]);sInvoices([]);sSha(null);}
 
-  // Stats
   const t=todayStr(),tm=t.slice(0,7);
   const todH=entries.filter(e=>e.date===t).reduce((s,e)=>s+e.hours,0);
   const monH=entries.filter(e=>e.date.startsWith(tm)).reduce((s,e)=>s+e.hours,0);
   const totH=entries.reduce((s,e)=>s+e.hours,0);
   const monB=entries.filter(e=>e.date.startsWith(tm)&&e.bill==='yes').reduce((s,e)=>s+e.hours,0);
   const totB=entries.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);
+  const totalInvoiced=invoices.reduce((s,i)=>s+i.net,0);
+  const totalPaid=invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+(i.paidAmount||i.net),0);
+  const totalOutstanding=invoices.filter(i=>['sent','overdue'].includes(i.status)).reduce((s,i)=>s+i.net,0);
   const months=[...new Set(entries.map(e=>mk(e.date)))].sort().reverse();
   const cats=[...new Set(entries.map(e=>e.cat))].sort();
-  const filtered=entries.filter(e=>{
-    if(filMonth!=='all'&&!e.date.startsWith(filMonth)) return false;
-    if(filCat!=='all'&&e.cat!==filCat) return false;
-    return true;
-  });
+  const filtered=entries.filter(e=>{if(filMonth!=='all'&&!e.date.startsWith(filMonth))return false;if(filCat!=='all'&&e.cat!==filCat)return false;return true;});
   const filtH=filtered.reduce((s,e)=>s+e.hours,0);
   const filtB=filtered.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);
 
-  function exportCSV(){
-    const hdr='Date,Start,End,Hours,Category,Description,Billable,Amount\n';
-    const rows=filtered.map(e=>`${e.date},${e.start||''},${e.end||''},${e.hours},"${e.cat}","${e.desc.replace(/"/g,'""')}",${e.bill},${e.bill==='yes'?(e.hours*RATE).toFixed(2):0}`).join('\n');
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([hdr+rows],{type:'text/csv'}));
-    a.download=`RPA_TimeLog_${filMonth==='all'?'All':filMonth}.csv`;
-    a.click();
-  }
+  const weeklyData=useMemo(()=>{const wMap={};entries.forEach(e=>{const w=weekOf(e.date);if(!wMap[w])wMap[w]={week:w,hours:0,billable:0,amount:0,cats:{}};wMap[w].hours+=e.hours;if(e.bill==='yes'){wMap[w].billable+=e.hours;wMap[w].amount+=e.hours*RATE;}wMap[w].cats[e.cat]=(wMap[w].cats[e.cat]||0)+e.hours;});return Object.values(wMap).sort((a,b)=>b.week.localeCompare(a.week));},[entries]);
+  const monthlyData=useMemo(()=>months.map(m=>{const me=entries.filter(e=>e.date.startsWith(m));const bh=me.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);const inv=invoices.find(i=>i.period===m);return{month:m,hours:me.reduce((s,e)=>s+e.hours,0),billable:bh,gross:bh*RATE,invoice:inv};}),[entries,invoices,months]);
 
-  // Sync indicator
-  const syncIndicator = ()=>{
-    if(syncSt==='loading') return <span className="pulse" style={{fontSize:11,color:'#7a82a0'}}>⟳ Loading from GitHub...</span>;
-    if(syncSt==='saving')  return <span className="pulse" style={{fontSize:11,color:'#c9923a'}}>⟳ Saving...</span>;
-    if(syncSt==='saved')   return <span style={{fontSize:11,color:'#5cb87a'}}>✓ Saved to GitHub</span>;
-    if(syncSt==='error')   return <span style={{fontSize:11,color:'#e05c5c'}} title={syncMsg}>⚠ Sync error</span>;
-    return <span style={{fontSize:11,color:'#4a5270'}}>GitHub sync active</span>;
-  };
+  function exportCSV(){const hdr='Date,Start,End,Hours,Category,Description,Notes,Billable,Amount\n';const rows=filtered.map(e=>`${e.date},${e.start||''},${e.end||''},${e.hours},"${e.cat}","${e.desc.replace(/"/g,'""')}","${(e.note||'').replace(/"/g,'""')}",${e.bill},${e.bill==='yes'?(e.hours*RATE).toFixed(2):0}`).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([hdr+rows],{type:'text/csv'}));a.download=`RPA_TimeLog_${filMonth==='all'?'All':filMonth}.csv`;a.click();}
 
-  const tabSt=id=>({padding:'10px 18px',fontSize:12,fontWeight:500,cursor:'pointer',
-    color:tab===id?'#c9923a':'#7a82a0',borderBottom:tab===id?'2px solid #c9923a':'2px solid transparent',
-    userSelect:'none',transition:'all 0.15s'});
-
+  const syncInd=()=>{if(syncSt==='loading')return<span className="pulse" style={{fontSize:11,color:'#7a82a0'}}>⟳ Loading...</span>;if(syncSt==='saving')return<span className="pulse" style={{fontSize:11,color:'#c9923a'}}>⟳ Saving...</span>;if(syncSt==='saved')return<span style={{fontSize:11,color:'#5cb87a'}}>✓ Saved</span>;if(syncSt==='error')return<span style={{fontSize:11,color:'#e05c5c'}} title={syncMsg}>⚠ Error</span>;return<span style={{fontSize:11,color:'#4a5270'}}>GitHub sync active</span>;};
+  const tabSt=id=>({padding:'10px 18px',fontSize:12,fontWeight:500,cursor:'pointer',color:tab===id?'#c9923a':'#7a82a0',borderBottom:tab===id?'2px solid #c9923a':'2px solid transparent',userSelect:'none',transition:'all 0.15s'});
   const selSt={background:'#1e2333',border:'1px solid #2a3050',borderRadius:6,color:'#7a82a0',fontSize:11,padding:'5px 8px',cursor:'pointer',fontFamily:'inherit'};
 
-  function BillingSummary(){
-    if(!months.length) return <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,padding:48,textAlign:'center',color:'#4a5270'}}>No entries yet to generate billing.</div>;
-    let retainer=RETAINER;
-    return months.map(m=>{
-      const me=entries.filter(e=>e.date.startsWith(m));
-      const bh=me.filter(e=>e.bill==='yes').reduce((s,e)=>s+e.hours,0);
-      const gross=bh*RATE; const credit=Math.min(retainer,gross); retainer-=credit; const net=gross-credit;
-      const catMap={};
-      me.forEach(e=>{if(!catMap[e.cat])catMap[e.cat]={h:0,b:0};catMap[e.cat].h+=e.hours;if(e.bill==='yes')catMap[e.cat].b+=e.hours;});
-      return <div key={m} style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,padding:22,marginBottom:16}}>
-        <div style={{fontSize:10,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1,marginBottom:3}}>Invoice Period</div>
-        <div style={{fontSize:18,fontWeight:700,marginBottom:16}}>{ml(m)}</div>
-        <table style={{width:'100%',borderCollapse:'collapse',marginBottom:16}}>
-          <thead><tr>{['Category','Hours','Rate','Amount'].map(h=><th key={h} style={{fontSize:9,color:'#4a5270',textTransform:'uppercase',padding:'7px 10px',textAlign:'left',borderBottom:'1px solid #2a3050'}}>{h}</th>)}</tr></thead>
-          <tbody>{Object.entries(catMap).map(([c,d])=><tr key={c} style={{borderBottom:'1px solid rgba(42,48,80,0.35)'}}>
-            <td style={{padding:'9px 10px'}}><Badge cat={c}/></td>
-            <td style={{padding:'9px 10px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fh(d.h)}</td>
-            <td style={{padding:'9px 10px',fontSize:12,color:'#7a82a0'}}>$150/hr</td>
-            <td style={{padding:'9px 10px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{d.b>0?'$'+(d.b*RATE).toLocaleString('en-US',{minimumFractionDigits:2}):'—'}</td>
-          </tr>)}</tbody>
-        </table>
-        <div style={{borderTop:'1px solid #2a3050',paddingTop:14,textAlign:'right'}}>
-          <div style={{fontSize:11,color:'#7a82a0'}}>Gross: <strong style={{color:'#e8eaf0',fontFamily:"'DM Mono',monospace"}}>${gross.toLocaleString('en-US',{minimumFractionDigits:2})}</strong></div>
-          {credit>0&&<div style={{fontSize:11,color:'#5cb87a'}}>Retainer credit applied: –${credit.toLocaleString('en-US',{minimumFractionDigits:2})}</div>}
-          <div style={{fontSize:11,color:'#7a82a0',marginTop:6}}>Net Due</div>
-          <div style={{fontSize:26,fontWeight:700,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>${net.toLocaleString('en-US',{minimumFractionDigits:2})}</div>
-        </div>
-      </div>;
-    });
-  }
+  const EntryRow=({e})=><tr style={{borderBottom:'1px solid rgba(42,48,80,0.4)'}}>
+    <td style={{padding:'10px 16px',fontFamily:"'DM Mono',monospace",fontSize:11,color:'#7a82a0',whiteSpace:'nowrap'}}>{fd(e.date)}{e.start&&<><br/><span style={{fontSize:10,color:'#4a5270'}}>{e.start}{e.end&&'–'+e.end}</span></>}</td>
+    <td style={{padding:'10px 16px'}}><Badge cat={e.cat}/></td>
+    <td style={{padding:'10px 16px',fontSize:12,color:'#7a82a0',maxWidth:200}}>{e.desc}</td>
+    <td style={{padding:'10px 16px',fontSize:11,color:'#4a5270',maxWidth:160}}>{e.note?<span style={{cursor:'pointer',color:'#7a82a0'}} onClick={()=>sExpandNote(expandNote===e.id?null:e.id)} title={e.note}>{expandNote===e.id?e.note:'📝 '+e.note.slice(0,25)+(e.note.length>25?'…':'')}</span>:'—'}</td>
+    <td style={{padding:'10px 16px',fontFamily:"'DM Mono',monospace",fontWeight:500,color:'#c9923a'}}>{fh(e.hours)}</td>
+    <td style={{padding:'10px 16px',fontFamily:"'DM Mono',monospace",fontSize:11,color:'#7a82a0'}}>{fc(e.hours,e.bill)}</td>
+    <td style={{padding:'10px 16px'}}><div style={{display:'flex',gap:6}}><Btn variant="ghost" small onClick={()=>{sEditEnt(e);sShowAdd(true);}}>✏</Btn><Btn variant="danger" onClick={()=>delEntry(e.id)}>✕</Btn></div></td>
+  </tr>;
 
-  if(!token) return <TokenModal onSave={handleToken}/>;
+  if(!token)return<TokenModal onSave={handleToken}/>;
 
-  return <div style={{background:'#0f1117',minHeight:'100vh',color:'#e8eaf0'}}>
-
+  return<div style={{background:'#0f1117',minHeight:'100vh',color:'#e8eaf0'}}>
     {/* Header */}
     <div style={{background:'#181c27',borderBottom:'1px solid #2a3050',padding:'14px 24px',display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:50}}>
       <div style={{display:'flex',alignItems:'center',gap:12}}>
         <div style={{width:36,height:36,background:'#c9923a',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'#0f1117',flexShrink:0}}>MB</div>
         <div>
           <div style={{fontSize:14,fontWeight:600}}>Maruan Barakat Consulting</div>
-          <div style={{fontSize:11,color:'#7a82a0',marginTop:1,display:'flex',alignItems:'center',gap:8}}>
-            Time Tracker — Rockefeller Philanthropy Advisors
-            <span style={{display:'inline-block',width:5,height:5,borderRadius:'50%',background:syncSt==='error'?'#e05c5c':syncSt==='saved'?'#5cb87a':'#4a5270'}}/>
-            {syncIndicator()}
-          </div>
+          <div style={{fontSize:11,color:'#7a82a0',marginTop:1,display:'flex',alignItems:'center',gap:8}}>Time Tracker v2 — RPA<span style={{display:'inline-block',width:5,height:5,borderRadius:'50%',background:syncSt==='error'?'#e05c5c':syncSt==='saved'?'#5cb87a':'#4a5270'}}/>{syncInd()}</div>
         </div>
       </div>
-      <div style={{display:'flex',alignItems:'center',gap:14}}>
-        <div style={{textAlign:'right'}}>
-          <div style={{fontSize:10,color:'#7a82a0'}}>$150/hr · {MAX_H}h contract · Net 30 ACH</div>
-          <div style={{fontSize:17,fontWeight:700,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>${(totB*RATE).toLocaleString('en-US',{minimumFractionDigits:2})} logged</div>
-        </div>
-        <Btn variant="primary" onClick={()=>setShowAdd(true)}>+ New Entry</Btn>
+      <div style={{display:'flex',alignItems:'center',gap:12}}>
+        <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#7a82a0'}}>$150/hr · {MAX_H}h contract · Net 30 ACH</div><div style={{fontSize:17,fontWeight:700,color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>{fm$(totB*RATE)} logged</div></div>
+        <Btn variant="ghost" small onClick={()=>sShowInv(true)}>📄 Invoice</Btn>
+        <Btn onClick={()=>sShowAdd(true)}>+ Entry</Btn>
       </div>
     </div>
 
     {/* Tabs */}
     <div style={{display:'flex',borderBottom:'1px solid #2a3050',background:'#181c27',padding:'0 24px',justifyContent:'space-between',alignItems:'center'}}>
-      <div style={{display:'flex'}}>
-        {[['log','📋 Log'],['entries','📊 All Entries'],['billing','💳 Billing']].map(([id,label])=>(
-          <div key={id} style={tabSt(id)} onClick={()=>setTab(id)}>{label}</div>
-        ))}
-      </div>
-      <button onClick={resetToken} style={{fontSize:10,color:'#4a5270',background:'none',border:'none',cursor:'pointer',padding:'4px 8px',fontFamily:'inherit'}}>
-        ⚙ Disconnect GitHub
-      </button>
+      <div style={{display:'flex'}}>{[['log','📋 Log'],['entries','📊 Entries'],['summary','📈 Summary'],['payments','💳 Payments']].map(([id,label])=><div key={id} style={tabSt(id)} onClick={()=>sTab(id)}>{label}</div>)}</div>
+      <button onClick={resetToken} style={{fontSize:10,color:'#4a5270',background:'none',border:'none',cursor:'pointer',padding:'4px 8px',fontFamily:'inherit'}}>⚙ Disconnect</button>
     </div>
 
-    <div style={{padding:'24px',maxWidth:920,margin:'0 auto'}}>
+    <div style={{padding:'24px',maxWidth:960,margin:'0 auto'}}>
 
       {/* LOG */}
       {tab==='log'&&<>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
-          <StatCard label="Today" value={fh(todH)} sub={fd(t)}/>
-          <StatCard label="This Month" value={fh(monH)} sub={ml(tm)}/>
-          <StatCard label="Total Logged" value={fh(totH)} accent="#c9923a" sub={`${(MAX_H-totH).toFixed(2)}h remaining of ${MAX_H}h`}>
-            <div style={{height:3,background:'#2a3050',borderRadius:2,overflow:'hidden',marginTop:6}}>
-              <div style={{height:'100%',background:'#c9923a',borderRadius:2,width:Math.min(totH/MAX_H*100,100)+'%',transition:'width 0.3s'}}/>
-            </div>
-          </StatCard>
-          <StatCard label="Billable (Month)" value={'$'+(monB*RATE).toLocaleString('en-US',{minimumFractionDigits:2})} sub="Net 30 · ACH" accent="#5cb87a"/>
+          <SC label="Today" value={fh(todH)} sub={fd(t)}/>
+          <SC label="This Month" value={fh(monH)} sub={ml(tm)}/>
+          <SC label="Total Logged" value={fh(totH)} accent="#c9923a" sub={`${(MAX_H-totH).toFixed(2)}h remaining`}><div style={{height:3,background:'#2a3050',borderRadius:2,overflow:'hidden',marginTop:6}}><div style={{height:'100%',background:'#c9923a',borderRadius:2,width:Math.min(totH/MAX_H*100,100)+'%',transition:'width 0.3s'}}/></div></SC>
+          <SC label="Outstanding" value={fm$(totalOutstanding)} sub={`${fm$(totalPaid)} received`} accent={totalOutstanding>0?'#e8b56a':'#5cb87a'}/>
         </div>
-
-        <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,padding:20,marginBottom:24,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <div>
-            <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>Log your time</div>
-            <div style={{fontSize:12,color:'#7a82a0'}}>Track each task separately per SOW per-task reporting. Entries auto-save to GitHub.</div>
-          </div>
-          <Btn variant="primary" onClick={()=>setShowAdd(true)}>+ Add Entry →</Btn>
-        </div>
-
         <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden'}}>
-          <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>Recent Entries</div>
-          {syncSt==='loading'
-            ? <div style={{textAlign:'center',padding:52,color:'#4a5270'}}><span className="spin" style={{fontSize:20}}>⟳</span><div style={{marginTop:10,fontSize:12}}>Loading from GitHub...</div></div>
-            : entries.length===0
-              ? <div style={{textAlign:'center',padding:52,color:'#4a5270'}}><div style={{fontSize:28,marginBottom:10}}>⏱</div><div style={{fontSize:13}}>No entries yet. Click "+ Add Entry" to log your first task.</div></div>
-              : <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse'}}><TH/><tbody>{entries.slice(0,7).map(e=><EntryRow key={e.id} e={e} onDelete={delEntry}/>)}</tbody></table>
-                  {entries.length>7&&<div style={{textAlign:'center',padding:'12px',borderTop:'1px solid #2a3050'}}><span style={{fontSize:12,color:'#7a82a0',cursor:'pointer'}} onClick={()=>setTab('entries')}>View all {entries.length} entries →</span></div>}
-                </div>
-          }
+          <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>Recent Entries</div>
+            <Btn small onClick={()=>sShowAdd(true)}>+ Add Entry</Btn>
+          </div>
+          {syncSt==='loading'?<div style={{textAlign:'center',padding:52,color:'#4a5270'}}><span className="spin" style={{fontSize:20}}>⟳</span><div style={{marginTop:10,fontSize:12}}>Loading from GitHub...</div></div>
+          :entries.length===0?<div style={{textAlign:'center',padding:52,color:'#4a5270'}}><div style={{fontSize:28,marginBottom:10}}>⏱</div><div>No entries yet.</div></div>
+          :<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse'}}><TH cols={['Date','Category','Description','Notes','Hours','Amount','']}/><tbody>{entries.slice(0,8).map(e=><EntryRow key={e.id} e={e}/>)}</tbody></table>
+            {entries.length>8&&<div style={{textAlign:'center',padding:'12px',borderTop:'1px solid #2a3050'}}><span style={{fontSize:12,color:'#7a82a0',cursor:'pointer'}} onClick={()=>sTab('entries')}>View all {entries.length} entries →</span></div>}
+          </div>}
         </div>
       </>}
 
@@ -467,40 +271,80 @@ function App(){
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',borderBottom:'1px solid #2a3050'}}>
           <div style={{fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>All Entries</div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <select style={selSt} value={filMonth} onChange={e=>setFilMonth(e.target.value)}>
-              <option value="all">All Time</option>
-              {months.map(m=><option key={m} value={m}>{ml(m)}</option>)}
-            </select>
-            <select style={selSt} value={filCat} onChange={e=>setFilCat(e.target.value)}>
-              <option value="all">All Categories</option>
-              {cats.map(c=><option key={c} value={c}>{c}</option>)}
-            </select>
-            <Btn variant="ghost" onClick={exportCSV}>↓ Export CSV</Btn>
+            <select style={selSt} value={filMonth} onChange={e=>sFilMonth(e.target.value)}><option value="all">All Time</option>{months.map(m=><option key={m} value={m}>{ml(m)}</option>)}</select>
+            <select style={selSt} value={filCat} onChange={e=>sFilCat(e.target.value)}><option value="all">All Categories</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select>
+            <Btn variant="ghost" small onClick={exportCSV}>↓ CSV</Btn>
           </div>
         </div>
-        {filtered.length===0
-          ? <div style={{textAlign:'center',padding:48,color:'#4a5270'}}>No entries match this filter.</div>
-          : <><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse'}}><TH/><tbody>{filtered.map(e=><EntryRow key={e.id} e={e} onDelete={delEntry}/>)}</tbody></table></div>
-              <div style={{display:'flex',justifyContent:'flex-end',gap:20,padding:'12px 18px',borderTop:'1px solid #2a3050'}}>
-                <span style={{fontSize:11,color:'#7a82a0'}}>Entries: <strong style={{color:'#e8eaf0',fontFamily:"'DM Mono',monospace"}}>{filtered.length}</strong></span>
-                <span style={{fontSize:11,color:'#7a82a0'}}>Hours: <strong style={{color:'#e8eaf0',fontFamily:"'DM Mono',monospace"}}>{fh(filtH)}</strong></span>
-                <span style={{fontSize:11,color:'#7a82a0'}}>Total: <strong style={{color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>${(filtB*RATE).toLocaleString('en-US',{minimumFractionDigits:2})}</strong></span>
-              </div>
-            </>
-        }
+        {filtered.length===0?<div style={{textAlign:'center',padding:48,color:'#4a5270'}}>No entries match this filter.</div>
+        :<><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse'}}><TH cols={['Date','Category','Description','Notes','Hours','Amount','']}/><tbody>{filtered.map(e=><EntryRow key={e.id} e={e}/>)}</tbody></table></div>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:20,padding:'12px 18px',borderTop:'1px solid #2a3050'}}>
+            <span style={{fontSize:11,color:'#7a82a0'}}>Entries: <strong style={{color:'#e8eaf0',fontFamily:"'DM Mono',monospace"}}>{filtered.length}</strong></span>
+            <span style={{fontSize:11,color:'#7a82a0'}}>Hours: <strong style={{color:'#e8eaf0',fontFamily:"'DM Mono',monospace"}}>{fh(filtH)}</strong></span>
+            <span style={{fontSize:11,color:'#7a82a0'}}>Total: <strong style={{color:'#c9923a',fontFamily:"'DM Mono',monospace"}}>{fm$(filtB*RATE)}</strong></span>
+          </div>
+        </>}
       </div>}
 
-      {/* BILLING */}
-      {tab==='billing'&&<>
-        <div style={{background:'rgba(201,146,58,0.1)',border:'1px solid rgba(201,146,58,0.25)',borderRadius:8,padding:'10px 16px',fontSize:12,color:'#e8b56a',marginBottom:20}}>
-          ⚡ <strong>INV-RPA-001</strong> · $6,000.00 retainer applied as credit against subsequent invoices · Apr 28 2026 – Apr 28 2027
+      {/* SUMMARY */}
+      {tab==='summary'&&<>
+        <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden',marginBottom:20}}>
+          <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>Monthly Summary</div>
+          {monthlyData.length===0?<div style={{textAlign:'center',padding:40,color:'#4a5270'}}>No data yet.</div>
+          :<table style={{width:'100%',borderCollapse:'collapse'}}><TH cols={['Month','Hours','Billable','Gross','Invoice','Status']}/><tbody>{monthlyData.map(m=><tr key={m.month} style={{borderBottom:'1px solid rgba(42,48,80,0.4)'}}><td style={{padding:'11px 16px',fontWeight:600}}>{ml(m.month)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fh(m.hours)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12,color:'#c9923a'}}>{fh(m.billable)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(m.gross)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{m.invoice?m.invoice.number:'—'}</td><td style={{padding:'11px 16px'}}>{m.invoice?<SBadge status={m.invoice.status}/>:<span style={{fontSize:11,color:'#4a5270'}}>Not invoiced</span>}</td></tr>)}</tbody></table>}
         </div>
-        <BillingSummary/>
+        <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden'}}>
+          <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>Weekly Summary</div>
+          {weeklyData.length===0?<div style={{textAlign:'center',padding:40,color:'#4a5270'}}>No data yet.</div>
+          :<table style={{width:'100%',borderCollapse:'collapse'}}><TH cols={['Week of','Hours','Billable','Amount','Top Category']}/><tbody>{weeklyData.map(w=>{const topCat=Object.entries(w.cats).sort((a,b)=>b[1]-a[1])[0];return<tr key={w.week} style={{borderBottom:'1px solid rgba(42,48,80,0.4)'}}><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:11,color:'#7a82a0'}}>{fd(w.week)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fh(w.hours)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12,color:'#c9923a'}}>{fh(w.billable)}</td><td style={{padding:'11px 16px',fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(w.amount)}</td><td style={{padding:'11px 16px'}}>{topCat?<Badge cat={topCat[0]}/>:'—'}</td></tr>;})}</tbody></table>}
+        </div>
+      </>}
+
+      {/* PAYMENTS */}
+      {tab==='payments'&&<>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
+          <SC label="Total Invoiced" value={fm$(totalInvoiced)} sub={`${invoices.length} invoice(s)`}/>
+          <SC label="Received" value={fm$(totalPaid)} sub="Confirmed payments" accent="#5cb87a"/>
+          <SC label="Outstanding" value={fm$(totalOutstanding)} sub="Sent, awaiting payment" accent={totalOutstanding>0?'#e8b56a':'#5cb87a'}/>
+          <SC label="Retainer Balance" value={fm$(Math.max(0,RETAINER-totalInvoiced))} sub="INV-RPA-001 credit remaining" accent="#c9923a"/>
+        </div>
+        <div style={{background:'#181c27',border:'1px solid #2a3050',borderRadius:12,overflow:'hidden'}}>
+          <div style={{padding:'12px 18px',borderBottom:'1px solid #2a3050',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{fontSize:11,fontWeight:600,color:'#7a82a0',textTransform:'uppercase',letterSpacing:1}}>Invoices</div>
+            <Btn small onClick={()=>sShowInv(true)}>+ Generate Invoice</Btn>
+          </div>
+          {/* Retainer */}
+          <div style={{padding:'12px 16px',borderBottom:'1px solid rgba(42,48,80,0.4)',display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr 0.8fr 1.5fr',gap:8,alignItems:'center',background:'rgba(92,184,122,0.04)'}}>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:600}}>INV-RPA-001</div>
+            <div style={{fontSize:12,color:'#7a82a0'}}>Apr 28, 2026</div>
+            <div style={{fontSize:12,color:'#7a82a0'}}>Retainer</div>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(RETAINER)}</div>
+            <SBadge status="paid"/>
+            <div style={{fontSize:11,color:'#5cb87a'}}>Applied as credit</div>
+          </div>
+          {invoices.length===0?<div style={{textAlign:'center',padding:40,color:'#4a5270'}}>No invoices yet. Click "+ Generate Invoice" to create your first.</div>
+          :invoices.map(inv=><div key={inv.id} style={{padding:'12px 16px',borderBottom:'1px solid rgba(42,48,80,0.4)',display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr 0.8fr 1.5fr',gap:8,alignItems:'center'}}>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:600}}>{inv.number}</div>
+            <div style={{fontSize:12,color:'#7a82a0'}}>{fd(inv.date)}</div>
+            <div style={{fontSize:12,color:'#7a82a0'}}>{ml(inv.period)}</div>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:12}}>{fm$(inv.net)}</div>
+            <SBadge status={inv.status}/>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {inv.status==='draft'&&<Btn variant="blue" small onClick={()=>updateInvoice(inv.id,{status:'sent',sentAt:todayStr()})}>Mark Sent</Btn>}
+              {inv.status==='sent'&&<Btn variant="green" small onClick={()=>{const a=window.prompt('Amount received:',String(inv.net));if(a)updateInvoice(inv.id,{status:'paid',paidAt:todayStr(),paidAmount:parseFloat(a)||inv.net});}}>Mark Paid</Btn>}
+              {inv.status==='sent'&&<Btn variant="danger" small onClick={()=>updateInvoice(inv.id,{status:'overdue'})}>Overdue</Btn>}
+              {inv.status==='overdue'&&<Btn variant="green" small onClick={()=>{const a=window.prompt('Amount received:',String(inv.net));if(a)updateInvoice(inv.id,{status:'paid',paidAt:todayStr(),paidAmount:parseFloat(a)||inv.net});}}>Mark Paid</Btn>}
+              {inv.status==='paid'&&<span style={{fontSize:10,color:'#5cb87a'}}>✓ {inv.paidAt?fd(inv.paidAt):''}</span>}
+              <Btn variant="danger" onClick={()=>delInvoice(inv.id)}>✕</Btn>
+            </div>
+          </div>)}
+        </div>
       </>}
 
     </div>
 
-    {showAdd&&<AddModal onClose={()=>setShowAdd(false)} onSave={addEntry}/>}
+    {(showAdd||editEnt)&&<AddModal onClose={()=>{sShowAdd(false);sEditEnt(null);}} onSave={addEntry} editEntry={editEnt}/>}
+    {showInv&&<InvoiceModal entries={entries} invoices={invoices} onClose={()=>sShowInv(false)} onSave={addInvoice}/>}
   </div>;
 }
 
