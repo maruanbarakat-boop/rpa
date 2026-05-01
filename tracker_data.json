@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "id": "1777651357753",
+      "date": "2026-05-01",
+      "start": "12:00",
+      "end": "12:30",
+      "hours": 0.5,
+      "cat": "Vendor Management",
+      "desc": "MS Licenses for RPA",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1777576739078",
       "date": "2026-04-30",
       "start": "15:00",
@@ -39,7 +50,7 @@
       "end": "13:00",
       "hours": 3.5,
       "cat": "Kickoff / Onboarding",
-      "desc": "Kickoff meeting Ã¢ÂÂ introductions with VP Technology (Ernest Ostro) and Claudio. Environment overview, scope alignment, initial access coordination. Teams video.",
+      "desc": "Kickoff meeting ÃÂ¢ÃÂÃÂ introductions with VP Technology (Ernest Ostro) and Claudio. Environment overview, scope alignment, initial access coordination. Teams video.",
       "bill": "yes"
     },
     {
@@ -49,7 +60,7 @@
       "end": "17:30",
       "hours": 1,
       "cat": "Kickoff / Onboarding",
-      "desc": "Introductory call Ã¢ÂÂ Ernest Ostro, Claudio. Initial engagement kickoff, consultant alignment, project scope discussion. Teams video.",
+      "desc": "Introductory call ÃÂ¢ÃÂÃÂ Ernest Ostro, Claudio. Initial engagement kickoff, consultant alignment, project scope discussion. Teams video.",
       "bill": "yes"
     },
     {
@@ -59,7 +70,7 @@
       "end": "13:15",
       "hours": 0.25,
       "cat": "Project Meetings",
-      "desc": "IT Project Daily Stand-Up Ã¢ÂÂ Ernest Ostro, Katy Thompson, Maruan Barakat. Teams video.",
+      "desc": "IT Project Daily Stand-Up ÃÂ¢ÃÂÃÂ Ernest Ostro, Katy Thompson, Maruan Barakat. Teams video.",
       "bill": "yes"
     }
   ],
