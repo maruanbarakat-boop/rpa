@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "id": "1777655590108",
+      "date": "2026-05-01",
+      "start": "12:30",
+      "end": "13:10",
+      "hours": 0.75,
+      "cat": "Project Meetings",
+      "desc": "Ernest/ Jenny - JSM",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1777651357753",
       "date": "2026-05-01",
       "start": "12:00",
