@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "id": "1777915012007",
+      "date": "2026-05-04",
+      "start": "13:00",
+      "end": "13:15",
+      "hours": 0.25,
+      "cat": "Project Meetings",
+      "desc": "Dayly stand up",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1777910491552",
       "date": "2026-05-04",
       "start": "09:30",
