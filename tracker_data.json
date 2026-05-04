@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "id": "1777918766694",
+      "date": "2026-05-04",
+      "start": "13:30",
+      "end": "14:00",
+      "hours": 0.5,
+      "cat": "Vendor Management",
+      "desc": "Meeting with Nick Bee - FleetDM",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1777915012007",
       "date": "2026-05-04",
       "start": "13:00",
