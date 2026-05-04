@@ -53,13 +53,36 @@ async function ghRead(token){
   const content=JSON.parse(atob(data.content.replace(/\n/g,'')));
   return{entries:content.entries||[],invoices:content.invoices||[],sha:data.sha};
 }
+async function ghGetSha(token){
+  const res=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}?ref=${GH_BRANCH}`,{headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});
+  if(res.status===404)return null;
+  if(!res.ok)throw new Error(`SHA fetch failed: ${res.status}`);
+  const data=await res.json();
+  return data.sha;
+}
 async function ghWrite(token,entries,invoices,sha){
   const url=`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
   const content=btoa(unescape(encodeURIComponent(JSON.stringify({entries,invoices},null,2))));
+  // Always fetch fresh SHA before writing to avoid conflicts
+  let currentSha=sha;
+  try{ currentSha=await ghGetSha(token)||sha; }catch(e){}
   const body={message:`Update time log — ${new Date().toISOString().slice(0,10)}`,content,branch:GH_BRANCH};
-  if(sha)body.sha=sha;
+  if(currentSha)body.sha=currentSha;
   const res=await fetch(url,{method:'PUT',headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(!res.ok){const err=await res.json();throw new Error(err.message||`Write failed: ${res.status}`);}
+  if(!res.ok){
+    const err=await res.json().catch(()=>({}));
+    // If still a conflict, fetch SHA once more and retry
+    if(res.status===409||res.status===422){
+      const freshSha=await ghGetSha(token);
+      if(freshSha){
+        const retryBody={...body,sha:freshSha};
+        const retry=await fetch(url,{method:'PUT',headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(retryBody)});
+        if(!retry.ok){const e2=await retry.json().catch(()=>({}));throw new Error(e2.message||`Write failed: ${retry.status}`);}
+        return(await retry.json()).content.sha;
+      }
+    }
+    throw new Error(err.message||`Write failed: ${res.status}`);
+  }
   return(await res.json()).content.sha;
 }
 async function validateToken(token){const res=await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`,{headers:{Authorization:`token ${token}`}});return res.ok;}
