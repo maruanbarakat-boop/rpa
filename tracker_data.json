@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "id": "1777930888470",
+      "date": "2026-05-04",
+      "start": "16:00",
+      "end": "17:00",
+      "hours": 1,
+      "cat": "Vendor Management",
+      "desc": "Meeting with Community IT",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1777930851630",
       "date": "2026-05-04",
       "start": "14:30",
