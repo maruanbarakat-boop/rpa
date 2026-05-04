@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "id": "1777930941737",
+      "date": "2026-05-04",
+      "start": "17:00",
+      "end": "17:30",
+      "hours": 0.5,
+      "cat": "Documentation",
+      "desc": "Working on documentation - assessment and emails",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1777930888470",
       "date": "2026-05-04",
       "start": "16:00",
