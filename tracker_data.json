@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "id": "1777918824119",
+      "date": "2026-05-04",
+      "start": "14:00",
+      "end": "14:15",
+      "hours": 0.25,
+      "cat": "Vendor Management",
+      "desc": "Meeting with Francisco Rosa CGCG",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1777918766694",
       "date": "2026-05-04",
       "start": "13:30",
