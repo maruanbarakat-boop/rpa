@@ -1,6 +1,28 @@
 {
   "entries": [
     {
+      "id": "1777998829128",
+      "date": "2026-05-05",
+      "start": "11:00",
+      "end": "12:00",
+      "hours": 1,
+      "cat": "Documentation",
+      "desc": "Working on HelpDesk RFP questions",
+      "note": "",
+      "bill": "yes"
+    },
+    {
+      "id": "1777998642446",
+      "date": "2026-05-05",
+      "start": "10:30",
+      "end": "11:00",
+      "hours": 0.5,
+      "cat": "Vendor Management",
+      "desc": "Intro call Atlassian",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1777998599436",
       "date": "2026-05-05",
       "start": "08:30",
