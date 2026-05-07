@@ -1,6 +1,28 @@
 {
   "entries": [
     {
+      "id": "1778175178305",
+      "date": "2026-05-06",
+      "start": "15:30",
+      "end": "18:00",
+      "hours": 2.5,
+      "cat": "Assessment / Audit",
+      "desc": "Entra, Intune, ADD CGCG access",
+      "note": "",
+      "bill": "yes"
+    },
+    {
+      "id": "1778175118675",
+      "date": "2026-05-06",
+      "start": "15:00",
+      "end": "15:30",
+      "hours": 0.5,
+      "cat": "Project Meetings",
+      "desc": "Meeting with Sara Malonda - 1Password Project",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1778175062019",
       "date": "2026-05-06",
       "start": "14:00",
