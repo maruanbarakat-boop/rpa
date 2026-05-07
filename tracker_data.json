@@ -1,6 +1,28 @@
 {
   "entries": [
     {
+      "id": "1778175062019",
+      "date": "2026-05-06",
+      "start": "14:00",
+      "end": "14:30",
+      "hours": 0.5,
+      "cat": "Vendor Management",
+      "desc": "Meeting with Ernest and Luke Wilson - Ninja One",
+      "note": "",
+      "bill": "yes"
+    },
+    {
+      "id": "1778175008629",
+      "date": "2026-05-06",
+      "start": "12:30",
+      "end": "13:15",
+      "hours": 0.75,
+      "cat": "Project Meetings",
+      "desc": "Jira's meeting with Sarah and Claudio",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1778174956676",
       "date": "2026-05-06",
       "start": "12:15",
