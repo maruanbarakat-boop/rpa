@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "id": "1778174956676",
+      "date": "2026-05-06",
+      "start": "12:15",
+      "end": "12:30",
+      "hours": 0.25,
+      "cat": "SharePoint / Teams / OneDrive",
+      "desc": "Helping Katy set the Ops Teams private channel",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1778174883141",
       "date": "2026-05-06",
       "start": "11:00",
