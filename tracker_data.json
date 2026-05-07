@@ -1,6 +1,28 @@
 {
   "entries": [
     {
+      "id": "1778175302895",
+      "date": "2026-05-07",
+      "start": "10:00",
+      "end": "12:00",
+      "hours": 2,
+      "cat": "Assessment / Audit",
+      "desc": "Entra / Intune / ADD Access CGCG Audit and documentation",
+      "note": "",
+      "bill": "yes"
+    },
+    {
+      "id": "1778175234756",
+      "date": "2026-05-07",
+      "start": "09:00",
+      "end": "09:45",
+      "hours": 0.75,
+      "cat": "Vendor Management",
+      "desc": "Meeting with Rohan and Ernest - AbnormalAI",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1778175178305",
       "date": "2026-05-06",
       "start": "15:30",
