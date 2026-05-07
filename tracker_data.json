@@ -1,6 +1,28 @@
 {
   "entries": [
     {
+      "id": "1778175363821",
+      "date": "2026-05-07",
+      "start": "14:30",
+      "end": "15:00",
+      "hours": 0.5,
+      "cat": "Vendor Management",
+      "desc": "Cloudfire and Ernest meeting",
+      "note": "",
+      "bill": "yes"
+    },
+    {
+      "id": "1778175329772",
+      "date": "2026-05-07",
+      "start": "13:00",
+      "end": "13:15",
+      "hours": 0.25,
+      "cat": "Project Meetings",
+      "desc": "Daily Stand-up",
+      "note": "",
+      "bill": "yes"
+    },
+    {
       "id": "1778175302895",
       "date": "2026-05-07",
       "start": "10:00",
